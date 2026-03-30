@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   CSS Custom Properties — Light / Dark theme
+   Applied to :root; toggled by adding `dark` class to <html>
+   ============================================================ */
+:root {
+  --bg-base:          #f1f5f9;
+  --bg-surface:       #ffffff;
+  --bg-sidebar:       #1e293b;
+  --bg-header:        #ffffff;
+  --text-primary:     #0f172a;
+  --text-secondary:   #64748b;
+  --text-sidebar:     #e2e8f0;
+  --border:           rgba(0,0,0,0.08);
+  --border-sidebar:   rgba(255,255,255,0.08);
+  --fc-border:        rgba(0,0,0,0.1);
+  --fc-today-bg:      rgba(59,130,246,0.08);
+  --fc-text:          #0f172a;
+  --fc-head-bg:       #ffffff;
+  --scrollbar-thumb:  rgba(0,0,0,0.18);
+  --input-bg:         rgba(0,0,0,0.05);
+  --input-border:     rgba(0,0,0,0.15);
+  --card-bg:          rgba(0,0,0,0.04);
+  --card-border:      rgba(0,0,0,0.10);
+}
+
+.dark {
+  --bg-base:          #0f172a;
+  --bg-surface:       #1e293b;
+  --bg-sidebar:       #0f172a;
+  --bg-header:        #1e293b;
+  --text-primary:     #f1f5f9;
+  --text-secondary:   #94a3b8;
+  --text-sidebar:     #e2e8f0;
+  --border:           rgba(255,255,255,0.08);
+  --border-sidebar:   rgba(255,255,255,0.08);
+  --fc-border:        rgba(255,255,255,0.1);
+  --fc-today-bg:      rgba(59,130,246,0.12);
+  --fc-text:          #f1f5f9;
+  --fc-head-bg:       #1e293b;
+  --scrollbar-thumb:  rgba(255,255,255,0.18);
+  --input-bg:         rgba(255,255,255,0.10);
+  --input-border:     rgba(255,255,255,0.15);
+  --card-bg:          rgba(255,255,255,0.05);
+  --card-border:      rgba(255,255,255,0.10);
+}
+
+/* Global placeholder color — works in both light and dark */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* ============================================================
+   Global
+   ============================================================ */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+
+html, body {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  user-select: none;
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+/* ============================================================
+   FullCalendar — theme-aware overrides
+   ============================================================ */
+.fc-theme-standard .fc-scrollgrid,
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: var(--fc-border) !important;
+}
+
+.fc .fc-col-header {
+  background-color: var(--fc-head-bg);
+}
+
+.fc .fc-daygrid-day,
+.fc .fc-timegrid-col {
+  background-color: var(--bg-surface);
+}
+
+.fc .fc-daygrid-day.fc-day-today,
+.fc .fc-timegrid-col.fc-day-today {
+  background-color: var(--fc-today-bg) !important;
+}
+
+.fc .fc-daygrid-day-number {
+  font-size: 1.05rem;
+  padding: 6px 8px;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fc-text);
+  text-decoration: none !important;
+}
+
+.fc .fc-col-header-cell-cushion {
+  font-size: 0.82rem;
+  padding: 8px 4px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-decoration: none !important;
+}
+
+.fc .fc-event {
+  min-height: 22px;
+  font-size: 0.8rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none !important;
+}
+
+.fc .fc-daygrid-event-harness {
+  margin-bottom: 2px;
+}
+
+.fc .fc-timegrid-slot-label-cushion {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.fc .fc-daygrid-more-link {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.fc .fc-timegrid-slot {
+  height: 2.8rem;
+}
+
+/* Week view now-indicator */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: #3b82f6;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border-top-color: #3b82f6;
+}
+
+/* ============================================================
+   Slideshow — Ken Burns zoom animation (for 'zoom' transition)
+   ============================================================ */
+@keyframes kenburns {
+  from { transform: scale(1)    translate(0,    0); }
+  to   { transform: scale(1.07) translate(-1%, -1%); }
+}

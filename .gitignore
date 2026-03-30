@@ -1,0 +1,29 @@
+# Environment variables (never commit these)
+.env
+.env.local
+.env.*.local
+
+# Build output
+out/
+dist/
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Electron builder cache
+electron-builder-cache/
+
+# Claude Code
+.claude/

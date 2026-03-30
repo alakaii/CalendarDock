@@ -1,0 +1,17 @@
+import type { Config } from 'tailwindcss'
+
+export default {
+  content: [
+    './src/renderer/src/**/*.{ts,tsx}',
+    './src/renderer/index.html'
+  ],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif']
+      }
+    }
+  },
+  plugins: []
+} satisfies Config
