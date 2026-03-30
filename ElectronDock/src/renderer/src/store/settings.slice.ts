@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture } from '../../../preload/types'
+import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera } from '../../../preload/types'
 
 interface SettingsState extends AppSettings {
   loadFromMain: () => Promise<void>
@@ -18,6 +18,16 @@ interface SettingsState extends AppSettings {
   addItem: (listId: string, text: string) => Promise<void>
   toggleItem: (listId: string, itemId: string, checked: boolean) => void
   removeItem: (listId: string, itemId: string) => void
+  // Chores / Lists config
+  setChoresMode: (mode: ChoresMode) => void
+  setChoresLists: (lists: ChoresList[]) => void
+  setListsMode: (mode: ListsMode) => void
+  setListsFilter: (filter: ListsFilter) => void
+  setListsSelectedIds: (ids: string[]) => void
+  // Integrations
+  setCameras: (cameras: WyzeCamera[]) => void
+  setRachioApiKey: (key: string) => void
+  setRinnaiCredentials: (email: string, password: string) => void
 }
 
 const defaults: AppSettings = {
@@ -50,7 +60,16 @@ const defaults: AppSettings = {
       city:        true
     }
   },
-  standbyExitGesture: 'double-tap' as StandbyExitGesture
+  standbyExitGesture: 'double-tap' as StandbyExitGesture,
+  choresMode: 'local' as ChoresMode,
+  choresLists: [{ id: 'chores', name: 'Chores' }],
+  listsMode: 'google' as ListsMode,
+  listsFilter: 'all' as ListsFilter,
+  listsSelectedIds: [],
+  cameras: [] as WyzeCamera[],
+  rachioApiKey: '',
+  rinnaiEmail: '',
+  rinnaiPassword: ''
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -163,5 +182,45 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         l.id === listId ? { ...l, items: l.items.filter((it) => it.id !== itemId) } : l
       )
     }))
+  },
+
+  setChoresMode: (mode) => {
+    window.api.settings.setChoresMode(mode)
+    set({ choresMode: mode })
+  },
+
+  setChoresLists: (lists) => {
+    window.api.settings.setChoresLists(lists)
+    set({ choresLists: lists })
+  },
+
+  setListsMode: (mode) => {
+    window.api.settings.setListsMode(mode)
+    set({ listsMode: mode })
+  },
+
+  setListsFilter: (filter) => {
+    window.api.settings.setListsFilter(filter)
+    set({ listsFilter: filter })
+  },
+
+  setListsSelectedIds: (ids) => {
+    window.api.settings.setListsSelectedIds(ids)
+    set({ listsSelectedIds: ids })
+  },
+
+  setCameras: (cameras) => {
+    window.api.settings.setCameras(cameras)
+    set({ cameras })
+  },
+
+  setRachioApiKey: (key) => {
+    window.api.settings.setRachioApiKey(key)
+    set({ rachioApiKey: key })
+  },
+
+  setRinnaiCredentials: (email, password) => {
+    window.api.settings.setRinnaiCredentials(email, password)
+    set({ rinnaiEmail: email, rinnaiPassword: password })
   }
 }))

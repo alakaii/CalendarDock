@@ -104,7 +104,53 @@ export interface StandbyLayout {
 
 // ---- New for UI redesign ----
 
-export type AppPage = 'calendar' | 'chores' | 'meals' | 'photos' | 'lists' | 'settings'
+export type AppPage = 'calendar' | 'chores' | 'meals' | 'photos' | 'lists' | 'settings' | 'cameras' | 'sprinklers' | 'waterheater'
+
+export type ChoresMode = 'local' | 'google'
+export type ListsMode  = 'local' | 'google'
+export type ListsFilter = 'all' | 'selected'
+
+export interface ChoresList {
+  id: string
+  name: string
+  googleTaskListId?: string
+  googleAccountId?: string
+}
+
+// ---- Wyze Cameras ----
+
+export interface WyzeCamera {
+  id: string
+  name: string
+  rtspUrl: string
+}
+
+// ---- Rachio ----
+
+export interface RachioZone {
+  id: string
+  zoneNumber: number
+  name: string
+  enabled: boolean
+}
+
+export interface RachioDevice {
+  id: string
+  name: string
+  status: string
+  zones: RachioZone[]
+  activeZoneId?: string
+}
+
+// ---- Rinnai ----
+
+export interface RinnaiDevice {
+  thingName: string
+  name: string
+  setTemp: number
+  isHeating: boolean
+  recirculationEnabled: boolean
+}
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
 
@@ -165,6 +211,15 @@ export interface AppSettings {
   slideshow:           SlideshowSettings
   standbyLayout:       StandbyLayout
   standbyExitGesture:  StandbyExitGesture
+  choresMode:       ChoresMode
+  choresLists:      ChoresList[]
+  listsMode:        ListsMode
+  listsFilter:      ListsFilter
+  listsSelectedIds: string[]  // "<accountId>::<taskListId>"
+  cameras:          WyzeCamera[]
+  rachioApiKey:     string
+  rinnaiEmail:      string
+  rinnaiPassword:   string
 }
 
 export interface WeatherData {
@@ -221,6 +276,29 @@ export interface CalendarDockAPI {
     setSlideshowSettings: (s: SlideshowSettings) => Promise<void>
     setStandbyLayout:      (l: StandbyLayout) => Promise<void>
     setStandbyExitGesture: (g: StandbyExitGesture) => Promise<void>
+    setChoresMode:       (mode: ChoresMode) => Promise<void>
+    setChoresLists:      (lists: ChoresList[]) => Promise<void>
+    setListsMode:        (mode: ListsMode) => Promise<void>
+    setListsFilter:      (filter: ListsFilter) => Promise<void>
+    setListsSelectedIds: (ids: string[]) => Promise<void>
+    setCameras:          (cameras: WyzeCamera[]) => Promise<void>
+    setRachioApiKey:     (key: string) => Promise<void>
+    setRinnaiCredentials:(email: string, password: string) => Promise<void>
+  }
+  cameras: {
+    startStream:    (cameraId: string) => Promise<string>   // returns local MJPEG URL
+    stopStream:     (cameraId: string) => Promise<void>
+    stopAllStreams:  () => Promise<void>
+  }
+  rachio: {
+    getDevices: () => Promise<RachioDevice[]>
+    startZone:  (zoneId: string, durationSec: number) => Promise<void>
+    stopAll:    (deviceId: string) => Promise<void>
+  }
+  rinnai: {
+    getDevices:       () => Promise<RinnaiDevice[]>
+    setTemperature:   (thingName: string, temp: number) => Promise<void>
+    setRecirculation: (thingName: string, enabled: boolean, durationMinutes?: number) => Promise<void>
   }
   lists: {
     addList: (name: string) => Promise<AppList>

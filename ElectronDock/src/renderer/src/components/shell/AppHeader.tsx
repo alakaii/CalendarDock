@@ -57,13 +57,13 @@ export default function AppHeader() {
   const panelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!forecastOpen) return
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setForecastOpen(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('pointerdown', handler)
+    return () => document.removeEventListener('pointerdown', handler)
   }, [forecastOpen])
 
   const timeStr = format(now, 'h:mm a')
@@ -79,7 +79,7 @@ export default function AppHeader() {
     <header
       className="flex items-center justify-between px-4 flex-shrink-0 gap-3 relative"
       style={{
-        height: 64,
+        height: 80,
         background: 'var(--bg-header)',
         borderBottom: '1px solid var(--border)',
         color: 'var(--text-primary)',
@@ -90,7 +90,7 @@ export default function AppHeader() {
         {activePage === 'calendar' ? (
           <button
             onClick={() => setPage('calendar')}
-            className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-base
                        transition-opacity hover:opacity-80 active:scale-95"
             style={{
               background: 'rgba(59,130,246,0.12)',
@@ -103,14 +103,14 @@ export default function AppHeader() {
             <span className="truncate">{familyName}</span>
           </button>
         ) : (
-          <span className="text-lg font-bold px-1">{pageTitles[activePage] ?? ''}</span>
+          <span className="text-xl font-bold px-1">{pageTitles[activePage] ?? ''}</span>
         )}
       </div>
 
       {/* Center: date + filter pills (calendar page only) */}
       <div className="flex-1 flex items-center justify-center gap-3 overflow-hidden min-w-0">
         {activePage === 'calendar' && (
-          <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
+          <span className="text-sm flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
             {dateStr}
           </span>
         )}
@@ -125,7 +125,7 @@ export default function AppHeader() {
           <div className="relative">
             <button
               onClick={() => setForecastOpen((v) => !v)}
-              className="text-sm font-medium px-2 py-1 rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95"
+              className="text-base font-medium px-3 py-2 rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95"
               style={{ color: 'var(--text-secondary)' }}
               title="Click to see 6-day forecast"
             >
@@ -196,7 +196,7 @@ export default function AppHeader() {
             )}
           </div>
         )}
-        <span className="text-base font-semibold tabular-nums">{timeStr}</span>
+        <span className="text-lg font-semibold tabular-nums">{timeStr}</span>
       </div>
     </header>
   )

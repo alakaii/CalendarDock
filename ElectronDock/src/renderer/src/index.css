@@ -76,11 +76,11 @@ html, body {
 /* ============================================================
    Scrollbar
    ============================================================ */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 14px; height: 14px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 3px;
+  border-radius: 7px;
 }
 
 /* ============================================================
@@ -107,10 +107,10 @@ html, body {
 }
 
 .fc .fc-daygrid-day-number {
-  font-size: 1.05rem;
-  padding: 6px 8px;
-  min-width: 32px;
-  min-height: 32px;
+  font-size: 1.25rem;
+  padding: 8px 10px;
+  min-width: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -119,8 +119,8 @@ html, body {
 }
 
 .fc .fc-col-header-cell-cushion {
-  font-size: 0.82rem;
-  padding: 8px 4px;
+  font-size: 1rem;
+  padding: 10px 4px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -129,30 +129,31 @@ html, body {
 }
 
 .fc .fc-event {
-  min-height: 22px;
-  font-size: 0.8rem;
-  padding: 2px 5px;
+  min-height: 36px;
+  font-size: 0.95rem;
+  padding: 4px 7px;
   border-radius: 4px;
   cursor: pointer;
   border: none !important;
 }
 
 .fc .fc-daygrid-event-harness {
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .fc .fc-timegrid-slot-label-cushion {
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
 }
 
 .fc .fc-daygrid-more-link {
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: 0.95rem;
+  padding: 4px 2px;
 }
 
 .fc .fc-timegrid-slot {
-  height: 2.8rem;
+  height: 3.5rem;
 }
 
 /* Week view now-indicator */

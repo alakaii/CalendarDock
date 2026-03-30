@@ -1,7 +1,7 @@
 import { ipcMain, dialog, app, BrowserWindow } from 'electron'
 import { settingsService } from '../services/settings.service'
 import { photosService } from '../services/photos.service'
-import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture } from '../../preload/types'
+import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera } from '../../preload/types'
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
   ipcMain.handle('settings:get-all', async () => {
@@ -122,6 +122,62 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
     'settings:set-standby-exit-gesture',
     async (_event, g: StandbyExitGesture) => {
       settingsService.setStandbyExitGesture(g)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-chores-mode',
+    async (_event, { mode }: { mode: ChoresMode }) => {
+      settingsService.setChoresMode(mode)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-chores-lists',
+    async (_event, { lists }: { lists: ChoresList[] }) => {
+      settingsService.setChoresLists(lists)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-lists-mode',
+    async (_event, { mode }: { mode: ListsMode }) => {
+      settingsService.setListsMode(mode)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-lists-filter',
+    async (_event, { filter }: { filter: ListsFilter }) => {
+      settingsService.setListsFilter(filter)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-lists-selected-ids',
+    async (_event, { ids }: { ids: string[] }) => {
+      settingsService.setListsSelectedIds(ids)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-cameras',
+    async (_event, { cameras }: { cameras: WyzeCamera[] }) => {
+      settingsService.setCameras(cameras)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-rachio-api-key',
+    async (_event, { key }: { key: string }) => {
+      settingsService.setRachioApiKey(key)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-rinnai-credentials',
+    async (_event, { email, password }: { email: string; password: string }) => {
+      settingsService.setRinnaiCredentials(email, password)
     }
   )
 }

@@ -7,6 +7,9 @@ import MealsPage from '../pages/MealsPage'
 import PhotosPage from '../pages/PhotosPage'
 import ListsPage from '../pages/ListsPage'
 import SettingsPage from '../pages/SettingsPage'
+import CamerasPage from '../pages/CamerasPage'
+import SprinklersPage from '../pages/SprinklersPage'
+import WaterHeaterPage from '../pages/WaterHeaterPage'
 
 export default function AppShell() {
   const activePage = useUIStore((s) => s.activePage)
@@ -24,12 +27,15 @@ export default function AppShell() {
         <AppHeader />
 
         <main className="flex-1 overflow-hidden">
-          {activePage === 'calendar' && <CalendarView />}
-          {activePage === 'chores'   && <ChoresPage listId="chores" />}
-          {activePage === 'meals'    && <MealsPage />}
-          {activePage === 'photos'   && <PhotosPage />}
-          {activePage === 'lists'    && <ListsPage />}
-          {activePage === 'settings' && <SettingsPage />}
+          {activePage === 'calendar'    && <CalendarView />}
+          {activePage === 'chores'      && <ChoresPage />}
+          {activePage === 'meals'       && <MealsPage />}
+          {activePage === 'photos'      && <PhotosPage />}
+          {activePage === 'lists'       && <ListsPage />}
+          {activePage === 'cameras'     && <CamerasPage />}
+          {activePage === 'sprinklers'  && <SprinklersPage />}
+          {activePage === 'waterheater' && <WaterHeaterPage />}
+          {activePage === 'settings'    && <SettingsPage />}
         </main>
       </div>
     </div>

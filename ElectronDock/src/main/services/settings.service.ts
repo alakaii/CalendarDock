@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
-import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture } from '../../preload/types'
+import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera } from '../../preload/types'
 
 type StoredSettings = AppSettings & {
   // Accounts with encrypted refresh tokens (base64 encoded, DPAPI encrypted)
@@ -49,7 +49,16 @@ const defaults: StoredSettings = {
       city:        true
     }
   },
-  standbyExitGesture: 'double-tap' as const
+  standbyExitGesture: 'double-tap' as const,
+  choresMode: 'local' as const,
+  choresLists: [{ id: 'chores', name: 'Chores' }],
+  listsMode: 'google' as const,
+  listsFilter: 'all' as const,
+  listsSelectedIds: [],
+  cameras: [],
+  rachioApiKey: '',
+  rinnaiEmail: '',
+  rinnaiPassword: ''
 }
 
 const store = new Store<StoredSettings>({
@@ -203,5 +212,44 @@ export const settingsService = {
   removeAccount(accountId: string): void {
     const accounts = (store.get('accounts') ?? []).filter((a) => a.id !== accountId)
     store.set('accounts', accounts)
+  },
+
+  // ---- Chores ----
+
+  setChoresMode(mode: ChoresMode): void {
+    store.set('choresMode', mode)
+  },
+
+  setChoresLists(lists: ChoresList[]): void {
+    store.set('choresLists', lists)
+  },
+
+  // ---- Lists page ----
+
+  setListsMode(mode: ListsMode): void {
+    store.set('listsMode', mode)
+  },
+
+  setListsFilter(filter: ListsFilter): void {
+    store.set('listsFilter', filter)
+  },
+
+  setListsSelectedIds(ids: string[]): void {
+    store.set('listsSelectedIds', ids)
+  },
+
+  // ---- Cameras / integrations ----
+
+  setCameras(cameras: WyzeCamera[]): void {
+    store.set('cameras', cameras)
+  },
+
+  setRachioApiKey(key: string): void {
+    store.set('rachioApiKey', key)
+  },
+
+  setRinnaiCredentials(email: string, password: string): void {
+    store.set('rinnaiEmail', email)
+    store.set('rinnaiPassword', password)
   }
 }

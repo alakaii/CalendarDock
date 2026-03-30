@@ -14,6 +14,7 @@
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
     "@fullcalendar/timegrid": "^6.1.20",
+    "amazon-cognito-identity-js": "^6.3.12",
     "chokidar": "^3.6.0",
     "dotenv": "^17.3.1",
     "electron-store": "^8.2.0",
@@ -69,6 +70,18 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        { "target": "deb", "arch": ["x64"] },
+        { "target": "AppImage", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.png",
+      "category": "Office",
+      "maintainer": "CalendarDock"
+    },
+    "deb": {
+      "depends": ["libnotify4", "libxtst6", "libnss3"]
     },
     "protocols": [
       {

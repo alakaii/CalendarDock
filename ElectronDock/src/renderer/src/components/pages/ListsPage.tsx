@@ -9,7 +9,7 @@ import {
 } from '../../hooks/useGoogleTasks'
 import type { GTaskList } from '../../../../preload/types'
 
-// ---------- Single task row ----------
+// ---------- Shared task row ----------
 function TaskRow({
   title,
   done,
@@ -61,12 +61,18 @@ function TaskRow({
   )
 }
 
-// ---------- Main page ----------
-export default function ListsPage() {
-  const accounts   = useSettingsStore((s) => s.accounts)
-  const accountIds = accounts.map((a) => a.id)
+// ---------- Google Tasks view ----------
+function GoogleListsView() {
+  const accounts         = useSettingsStore((s) => s.accounts)
+  const listsFilter      = useSettingsStore((s) => s.listsFilter)
+  const listsSelectedIds = useSettingsStore((s) => s.listsSelectedIds)
+  const accountIds       = accounts.map((a) => a.id)
 
-  const { data: taskLists = [], isLoading: listsLoading } = useGoogleTaskLists(accountIds)
+  const { data: allTaskLists = [], isLoading: listsLoading } = useGoogleTaskLists(accountIds)
+
+  const taskLists = listsFilter === 'selected' && listsSelectedIds.length > 0
+    ? allTaskLists.filter((tl) => listsSelectedIds.includes(`${tl.accountId}::${tl.id}`))
+    : allTaskLists
 
   const [selected, setSelected] = useState<GTaskList | null>(null)
   const activeList = selected ?? taskLists[0] ?? null
@@ -86,7 +92,6 @@ export default function ListsPage() {
     setDraft('')
   }
 
-  // ---- No accounts ----
   if (accounts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3"
@@ -104,7 +109,6 @@ export default function ListsPage() {
 
   return (
     <div className="flex h-full overflow-hidden" style={{ background: 'var(--bg-base)' }}>
-
       {/* Left: task list selector */}
       <div
         className="w-52 flex flex-col flex-shrink-0 overflow-y-auto py-2"
@@ -114,7 +118,9 @@ export default function ListsPage() {
           <p className="text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
         ) : taskLists.length === 0 ? (
           <p className="text-xs text-center py-8 px-3 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            No task lists found — create one in Google Tasks on your phone first
+            {listsFilter === 'selected'
+              ? 'No lists selected — go to Settings → Lists to choose which to show.'
+              : 'No task lists found — create one in Google Tasks on your phone first.'}
           </p>
         ) : (
           taskLists.map((list) => {
@@ -143,20 +149,17 @@ export default function ListsPage() {
         )}
       </div>
 
-      {/* Right: task list */}
+      {/* Right: tasks */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1.5">
-
           {tasksLoading && (
             <p className="text-sm text-center py-12" style={{ color: 'var(--text-secondary)' }}>Loading tasks…</p>
           )}
-
           {!tasksLoading && active.length === 0 && done.length === 0 && (
             <p className="text-sm text-center py-16" style={{ color: 'var(--text-secondary)' }}>
               No tasks — add one below!
             </p>
           )}
-
           {active.map((t) => (
             <TaskRow
               key={t.id}
@@ -166,7 +169,6 @@ export default function ListsPage() {
               onDelete={() => removeTask.mutate({ accountId: t.accountId, taskListId: t.taskListId, taskId: t.id })}
             />
           ))}
-
           {done.length > 0 && (
             <>
               <p className="text-xs font-semibold mt-5 mb-1.5 px-1" style={{ color: 'var(--text-secondary)' }}>
@@ -184,8 +186,6 @@ export default function ListsPage() {
             </>
           )}
         </div>
-
-        {/* Add task */}
         <div
           className="flex items-center gap-3 px-5 py-4 flex-shrink-0"
           style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-surface)' }}
@@ -212,4 +212,176 @@ export default function ListsPage() {
       </div>
     </div>
   )
+}
+
+// ---------- Local lists view ----------
+function LocalListsView() {
+  const lists      = useSettingsStore((s) => s.lists)
+  const choresLists = useSettingsStore((s) => s.choresLists)
+  const addList    = useSettingsStore((s) => s.addList)
+  const addItem    = useSettingsStore((s) => s.addItem)
+  const toggleItem = useSettingsStore((s) => s.toggleItem)
+  const removeItem = useSettingsStore((s) => s.removeItem)
+
+  // Exclude lists that are used as chore lists
+  const choresListIds = new Set(choresLists.map((cl) => cl.id))
+  const visibleLists = lists.filter((l) => !choresListIds.has(l.id))
+
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [newListDraft, setNewListDraft] = useState('')
+
+  const activeList = visibleLists.find((l) => l.id === selectedId) ?? visibleLists[0] ?? null
+  const items = activeList?.items ?? []
+  const unchecked = items.filter((it) => !it.checked)
+  const checked   = items.filter((it) => it.checked)
+
+  const handleAddItem = async () => {
+    const text = draft.trim()
+    if (!text || !activeList) return
+    await addItem(activeList.id, text)
+    setDraft('')
+  }
+
+  const handleAddList = async () => {
+    const name = newListDraft.trim()
+    if (!name) return
+    const newL = await addList(name) as { id: string }
+    setSelectedId(newL.id)
+    setNewListDraft('')
+  }
+
+  return (
+    <div className="flex h-full overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+      {/* Left: list selector */}
+      <div
+        className="w-52 flex flex-col flex-shrink-0 overflow-y-auto"
+        style={{ borderRight: '1px solid var(--border)', background: 'var(--bg-surface)' }}
+      >
+        <div className="flex-1 py-2 overflow-y-auto">
+          {visibleLists.length === 0 && (
+            <p className="text-xs text-center py-8 px-3 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              No lists yet — create one below.
+            </p>
+          )}
+          {visibleLists.map((list) => {
+            const isActive = activeList?.id === list.id
+            return (
+              <button
+                key={list.id}
+                onClick={() => setSelectedId(list.id)}
+                className="w-full flex items-center px-4 py-3 text-sm font-medium
+                           min-h-[52px] transition-colors text-left truncate"
+                style={{
+                  background: isActive ? 'rgba(59,130,246,0.12)' : 'transparent',
+                  color: isActive ? '#3b82f6' : 'var(--text-primary)',
+                }}
+              >
+                {list.name}
+              </button>
+            )
+          })}
+        </div>
+        {/* Add list */}
+        <div
+          className="flex items-center gap-1.5 px-2 py-2 flex-shrink-0"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          <input
+            type="text"
+            value={newListDraft}
+            onChange={(e) => setNewListDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddList()}
+            placeholder="New list…"
+            className="flex-1 px-2 py-1.5 rounded-lg text-sm outline-none min-h-[36px]"
+            style={{
+              background: 'var(--input-bg)',
+              border: '1px solid var(--input-border)',
+              color: 'var(--text-primary)',
+            }}
+          />
+          <button
+            onClick={handleAddList}
+            disabled={!newListDraft.trim()}
+            className="p-1.5 rounded-lg transition-opacity disabled:opacity-30 min-h-[36px] min-w-[36px] flex items-center justify-center"
+            style={{ background: '#3b82f6', color: '#fff' }}
+            aria-label="Add list"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Right: items */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1.5">
+          {!activeList ? (
+            <p className="text-sm text-center py-16" style={{ color: 'var(--text-secondary)' }}>
+              Select or create a list.
+            </p>
+          ) : unchecked.length === 0 && checked.length === 0 ? (
+            <p className="text-sm text-center py-16" style={{ color: 'var(--text-secondary)' }}>
+              No items — add one below!
+            </p>
+          ) : null}
+          {unchecked.map((item) => (
+            <TaskRow
+              key={item.id}
+              title={item.text}
+              done={false}
+              onToggle={() => activeList && toggleItem(activeList.id, item.id, true)}
+              onDelete={() => activeList && removeItem(activeList.id, item.id)}
+            />
+          ))}
+          {checked.length > 0 && (
+            <>
+              <p className="text-xs font-semibold mt-5 mb-1.5 px-1" style={{ color: 'var(--text-secondary)' }}>
+                COMPLETED ({checked.length})
+              </p>
+              {checked.map((item) => (
+                <TaskRow
+                  key={item.id}
+                  title={item.text}
+                  done={true}
+                  onToggle={() => activeList && toggleItem(activeList.id, item.id, false)}
+                  onDelete={() => activeList && removeItem(activeList.id, item.id)}
+                />
+              ))}
+            </>
+          )}
+        </div>
+        <div
+          className="flex items-center gap-3 px-5 py-4 flex-shrink-0"
+          style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-surface)' }}
+        >
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
+            placeholder={activeList ? `Add to ${activeList.name}…` : 'Select a list'}
+            disabled={!activeList}
+            className="flex-1 bg-transparent text-base outline-none placeholder:opacity-40 disabled:opacity-30"
+            style={{ color: 'var(--text-primary)' }}
+          />
+          <button
+            onClick={handleAddItem}
+            disabled={!draft.trim() || !activeList}
+            className="px-4 py-2 rounded-xl font-semibold text-sm transition-opacity disabled:opacity-30 min-h-[44px]"
+            style={{ background: '#3b82f6', color: '#fff' }}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------- Main page ----------
+export default function ListsPage() {
+  const listsMode = useSettingsStore((s) => s.listsMode)
+  return listsMode === 'google' ? <GoogleListsView /> : <LocalListsView />
 }

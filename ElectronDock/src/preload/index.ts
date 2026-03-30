@@ -47,7 +47,42 @@ const api: CalendarDockAPI = {
     setStandbyLayout: (l) =>
       ipcRenderer.invoke('settings:set-standby-layout', l),
     setStandbyExitGesture: (g) =>
-      ipcRenderer.invoke('settings:set-standby-exit-gesture', g)
+      ipcRenderer.invoke('settings:set-standby-exit-gesture', g),
+    setChoresMode: (mode) =>
+      ipcRenderer.invoke('settings:set-chores-mode', { mode }),
+    setChoresLists: (lists) =>
+      ipcRenderer.invoke('settings:set-chores-lists', { lists }),
+    setListsMode: (mode) =>
+      ipcRenderer.invoke('settings:set-lists-mode', { mode }),
+    setListsFilter: (filter) =>
+      ipcRenderer.invoke('settings:set-lists-filter', { filter }),
+    setListsSelectedIds: (ids) =>
+      ipcRenderer.invoke('settings:set-lists-selected-ids', { ids }),
+    setCameras: (cameras) =>
+      ipcRenderer.invoke('settings:set-cameras', { cameras }),
+    setRachioApiKey: (key) =>
+      ipcRenderer.invoke('settings:set-rachio-api-key', { key }),
+    setRinnaiCredentials: (email, password) =>
+      ipcRenderer.invoke('settings:set-rinnai-credentials', { email, password })
+  },
+
+  cameras: {
+    startStream:   (cameraId) => ipcRenderer.invoke('cameras:start-stream', { cameraId }),
+    stopStream:    (cameraId) => ipcRenderer.invoke('cameras:stop-stream', { cameraId }),
+    stopAllStreams: ()         => ipcRenderer.invoke('cameras:stop-all'),
+  },
+
+  rachio: {
+    getDevices: ()                         => ipcRenderer.invoke('rachio:get-devices'),
+    startZone:  (zoneId, durationSec)      => ipcRenderer.invoke('rachio:start-zone', { zoneId, durationSec }),
+    stopAll:    (deviceId)                 => ipcRenderer.invoke('rachio:stop-all', { deviceId }),
+  },
+
+  rinnai: {
+    getDevices:       ()                          => ipcRenderer.invoke('rinnai:get-devices'),
+    setTemperature:   (thingName, temp)           => ipcRenderer.invoke('rinnai:set-temperature', { thingName, temp }),
+    setRecirculation: (thingName, enabled, durationMinutes) =>
+      ipcRenderer.invoke('rinnai:set-recirculation', { thingName, enabled, durationMinutes }),
   },
 
   lists: {
