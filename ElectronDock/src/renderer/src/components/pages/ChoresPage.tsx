@@ -243,11 +243,10 @@ function GoogleChoreList({ choresList }: { choresList: ChoresList }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ChoresPage() {
-  const choresMode  = useSettingsStore((s) => s.choresMode)
   const choresLists = useSettingsStore((s) => s.choresLists)
 
   const [activeTab, setActiveTab] = useState(0)
-  const activeIdx = Math.min(activeTab, choresLists.length - 1)
+  const activeIdx  = Math.min(activeTab, choresLists.length - 1)
   const activeList = choresLists[activeIdx] ?? null
 
   if (choresLists.length === 0) {
@@ -260,6 +259,9 @@ export default function ChoresPage() {
       </div>
     )
   }
+
+  // Per-list mode: a list is Google-backed when it has both accountId + taskListId linked
+  const isGoogle = (cl: ChoresList) => !!(cl.googleAccountId && cl.googleTaskListId)
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--bg-base)' }}>
@@ -274,7 +276,7 @@ export default function ChoresPage() {
             <button
               key={cl.id}
               onClick={() => setActiveTab(i)}
-              className="px-5 py-2.5 rounded-t-xl text-sm font-semibold transition-colors min-h-[44px]"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-sm font-semibold transition-colors min-h-[44px]"
               style={{
                 background: activeIdx === i ? 'var(--bg-surface)' : 'transparent',
                 color: activeIdx === i ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -282,17 +284,21 @@ export default function ChoresPage() {
               }}
             >
               {cl.name}
+              {isGoogle(cl) && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>G</span>
+              )}
             </button>
           ))}
         </div>
       )}
 
-      {/* List content */}
+      {/* List content — each list independently local or Google-backed */}
       <div className="flex-1 overflow-hidden">
         {activeList && (
-          choresMode === 'local'
-            ? <LocalChoreList choresList={activeList} />
-            : <GoogleChoreList choresList={activeList} />
+          isGoogle(activeList)
+            ? <GoogleChoreList choresList={activeList} />
+            : <LocalChoreList  choresList={activeList} />
         )}
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
 import { TouchButton } from '../shared/TouchButton'
-import type { StandbyCorner, StandbyElementId, StandbyWeatherFields, StandbyExitGesture } from '../../../../preload/types'
+import type { StandbyCorner, StandbyElementId, StandbyWeatherFields, StandbyWaterFields, StandbyExitGesture } from '../../../../preload/types'
 
 // ── Corner Picker ─────────────────────────────────────────────────────────────
 
@@ -71,6 +71,7 @@ const ELEMENT_LABELS: Record<StandbyElementId, string> = {
   time:    'Time & Date',
   weather: 'Weather',
   events:  'Events Today',
+  water:   'Water Heater',
 }
 
 const WEATHER_FIELD_LABELS: { key: keyof StandbyWeatherFields; label: string }[] = [
@@ -81,11 +82,34 @@ const WEATHER_FIELD_LABELS: { key: keyof StandbyWeatherFields; label: string }[]
   { key: 'city',        label: 'City name' },
 ]
 
+const WATER_FIELD_LABELS: { key: keyof StandbyWaterFields; label: string; desc: string }[] = [
+  { key: 'timeRemaining',       label: 'Time Remaining',       desc: 'Countdown while recirculation is active' },
+  { key: 'domesticTemperature', label: 'Water Temp',           desc: 'Actual domestic hot water temperature' },
+  { key: 'recircTemperature',   label: 'Recirc Loop Temp',     desc: 'Recirculation loop temperature' },
+  { key: 'outletTemperature',   label: 'Outlet Temp (m02)',    desc: 'Heat exchanger outlet sensor' },
+  { key: 'inletTemperature',    label: 'Inlet Temp (m08)',     desc: 'Cold water inlet sensor' },
+]
+
+const DEFAULT_WATER_FIELDS: StandbyWaterFields = {
+  timeRemaining:       true,
+  domesticTemperature: true,
+  recircTemperature:   true,
+  outletTemperature:   false,
+  inletTemperature:    false,
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function StandbySettings() {
   const standbyTimeoutMinutes = useSettingsStore((s) => s.standbyTimeoutMinutes)
-  const layout                = useSettingsStore((s) => s.standbyLayout)
+  const rawLayout             = useSettingsStore((s) => s.standbyLayout)
+  // Merge in water defaults for installs that pre-date these fields
+  const layout = {
+    ...rawLayout,
+    water:       rawLayout.water       ?? { corner: 'bottom-right' as const, enabled: true },
+    waterFields: rawLayout.waterFields ?? DEFAULT_WATER_FIELDS,
+    priority:    rawLayout.priority.includes('water') ? rawLayout.priority : [...rawLayout.priority, 'water'],
+  }
   const exitGesture           = useSettingsStore((s) => s.standbyExitGesture)
   const setStandbyLayout      = useSettingsStore((s) => s.setStandbyLayout)
   const setStandbyExitGesture = useSettingsStore((s) => s.setStandbyExitGesture)
@@ -145,6 +169,13 @@ export default function StandbySettings() {
       weatherFields: { ...layout.weatherFields, [key]: !layout.weatherFields[key] },
     })
 
+  // ── E: Water fields ────────────────────────────────────────────────────────
+  const toggleWaterField = (key: keyof StandbyWaterFields) =>
+    setStandbyLayout({
+      ...layout,
+      waterFields: { ...layout.waterFields, [key]: !layout.waterFields[key] },
+    })
+
   const cardStyle = { background: 'var(--card-bg)', border: '1px solid var(--card-border)' }
 
   return (
@@ -183,7 +214,7 @@ export default function StandbySettings() {
           Pick which corner each widget appears in, and toggle it on or off.
         </p>
 
-        {(['time', 'weather', 'events'] as StandbyElementId[]).map((id) => (
+        {(['time', 'weather', 'events', 'water'] as StandbyElementId[]).map((id) => (
           <div key={id} className="flex items-center gap-4">
             <p className="text-sm font-medium flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>
               {ELEMENT_LABELS[id]}
@@ -278,7 +309,28 @@ export default function StandbySettings() {
         ))}
       </div>
 
-      {/* ── E: Exit Gesture ───────────────────────────────────────────────── */}
+      {/* ── E: Water Heater Display Fields ───────────────────────────────── */}
+      <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
+        <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Water Heater Display</p>
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Choose which water heater details appear when the widget is active in standby.
+        </p>
+
+        {WATER_FIELD_LABELS.map(({ key, label, desc }) => (
+          <div key={key} className="flex items-center justify-between py-1 gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{label}</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
+            </div>
+            <Toggle
+              checked={layout.waterFields[key]}
+              onChange={() => toggleWaterField(key)}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* ── F: Exit Gesture ───────────────────────────────────────────────── */}
       <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
         <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Exit Gesture</p>
         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>

@@ -10,14 +10,16 @@ const ZONE_DURATIONS = [
   { label: '30 min', sec: 1800 },
 ]
 
-function ZoneRow({
+function ZoneTile({
   zone,
   device,
   isActive,
+  minHeight = 180,
 }: {
   zone: RachioDevice['zones'][0]
   device: RachioDevice
   isActive: boolean
+  minHeight?: number
 }) {
   const qc = useQueryClient()
   const [duration, setDuration] = useState(600)
@@ -36,40 +38,45 @@ function ZoneRow({
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 rounded-xl min-h-[64px]"
+      className="flex flex-col gap-4 rounded-2xl p-5"
       style={{
         background: isActive ? 'rgba(59,130,246,0.1)' : 'var(--bg-surface)',
         border: `1px solid ${isActive ? 'rgba(59,130,246,0.4)' : 'var(--border)'}`,
+        minHeight,
       }}
     >
-      {/* Active indicator */}
-      <div
-        className="w-3 h-3 rounded-full flex-shrink-0"
-        style={{ background: isActive ? '#3b82f6' : 'var(--border)' }}
-      />
+      {/* Zone name + active dot */}
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-base font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>
+          {zone.name}
+        </span>
+        <div
+          className={`w-3 h-3 rounded-full flex-shrink-0 mt-1 ${isActive ? 'animate-pulse' : ''}`}
+          style={{ background: isActive ? '#3b82f6' : 'var(--border)' }}
+        />
+      </div>
 
-      <span className="flex-1 text-base font-medium" style={{ color: 'var(--text-primary)' }}>
-        {zone.name}
-      </span>
+      {/* Spacer */}
+      <div className="flex-1" />
 
       {isActive ? (
         <button
           onClick={() => stopMutation.mutate()}
           disabled={isPending}
-          className="px-4 py-2 rounded-xl font-semibold text-sm transition-opacity disabled:opacity-50 min-h-[44px]"
+          className="w-full py-3 rounded-xl font-bold text-base transition-opacity disabled:opacity-50 min-h-[56px]"
           style={{ background: '#ef4444', color: '#fff' }}
         >
           Stop
         </button>
       ) : (
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <>
           <select
             value={duration}
             onChange={(e) => setDuration(Number(e.target.value))}
-            className="text-sm px-3 py-2 rounded-lg outline-none min-h-[44px]"
+            className="w-full text-sm px-3 py-2 rounded-xl outline-none min-h-[44px]"
             style={{
-              background: 'var(--input-bg)',
-              border: '1px solid var(--input-border)',
+              background: 'var(--input-bg, var(--bg-base))',
+              border: '1px solid var(--input-border, var(--border))',
               color: 'var(--text-primary)',
             }}
           >
@@ -80,15 +87,35 @@ function ZoneRow({
           <button
             onClick={() => startMutation.mutate()}
             disabled={isPending || !zone.enabled}
-            className="px-4 py-2 rounded-xl font-semibold text-sm transition-opacity disabled:opacity-30 min-h-[44px]"
+            className="w-full py-3 rounded-xl font-bold text-base transition-opacity disabled:opacity-30 min-h-[56px]"
             style={{ background: '#3b82f6', color: '#fff' }}
           >
             Run
           </button>
-        </div>
+        </>
       )}
     </div>
   )
+}
+
+const PADDING_X  = 23
+const PADDING_Y  = 16
+const GRID_GAP   = 30
+const COLS       = 3
+const TILE_MIN_H = 180
+
+/** Split zones so any remainder tiles form a centered top row, full rows below */
+function chunkZones<T>(items: T[], cols: number): T[][] {
+  if (items.length === 0) return []
+  const remainder = items.length % cols
+  const rows: T[][] = []
+  if (remainder > 0) {
+    rows.push(items.slice(0, remainder))
+    for (let i = remainder; i < items.length; i += cols) rows.push(items.slice(i, i + cols))
+  } else {
+    for (let i = 0; i < items.length; i += cols) rows.push(items.slice(i, i + cols))
+  }
+  return rows
 }
 
 export default function SprinklersPage() {
@@ -149,14 +176,19 @@ export default function SprinklersPage() {
     )
   }
 
+  // Tile width: each tile is exactly 1/COLS of the available row width
+  const tileWidth = `calc((100% - ${(COLS - 1) * GRID_GAP}px) / ${COLS})`
+
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--bg-base)' }}>
       {devices.map((device) => {
         const zones = device.zones.filter((z) => z.enabled)
+        const rows  = chunkZones(zones, COLS)
+
         return (
-          <div key={device.id} className="px-6 py-4">
+          <div key={device.id} style={{ paddingLeft: PADDING_X, paddingRight: PADDING_X, paddingTop: PADDING_Y, paddingBottom: PADDING_Y }}>
             {/* Device header */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
                   {device.name}
@@ -177,21 +209,28 @@ export default function SprinklersPage() {
               )}
             </div>
 
-            <div className="space-y-2">
-              {zones.map((zone) => (
-                <ZoneRow
-                  key={zone.id}
-                  zone={zone}
-                  device={device}
-                  isActive={zone.id === device.activeZoneId}
-                />
-              ))}
-              {zones.length === 0 && (
-                <p className="text-sm py-4 text-center" style={{ color: 'var(--text-secondary)' }}>
-                  No enabled zones found.
-                </p>
-              )}
-            </div>
+            {zones.length === 0 ? (
+              <p className="text-sm py-4 text-center" style={{ color: 'var(--text-secondary)' }}>
+                No enabled zones found.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: GRID_GAP }}>
+                {rows.map((row, ri) => (
+                  <div key={ri} style={{ display: 'flex', justifyContent: 'center', gap: GRID_GAP }}>
+                    {row.map((zone) => (
+                      <div key={zone.id} style={{ width: tileWidth, flexShrink: 0 }}>
+                        <ZoneTile
+                          zone={zone}
+                          device={device}
+                          isActive={zone.id === device.activeZoneId}
+                          minHeight={TILE_MIN_H}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}

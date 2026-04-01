@@ -5,6 +5,7 @@ import PhotoSlideshow, { type PhotoSlideshowHandle } from './PhotoSlideshow'
 import StandbyTime from './StandbyTime'
 import StandbyWeather from './StandbyWeather'
 import TodayEventsDrawer from './TodayEventsDrawer'
+import StandbyWater from './StandbyWater'
 import { usePhotos } from '../../hooks/usePhotos'
 import type { StandbyCorner, StandbyElementId } from '../../../../preload/types'
 
@@ -72,11 +73,19 @@ export default function StandbyOverlay() {
     }
   }
 
+  // Merge in water default for installs that pre-date this field
+  const safeLayout = {
+    ...layout,
+    water: layout.water ?? { corner: 'bottom-right' as StandbyCorner, enabled: true },
+    priority: layout.priority.includes('water') ? layout.priority : [...layout.priority, 'water'],
+  }
+
   // Build element node map
   const elementNodes: Record<StandbyElementId, React.ReactNode> = {
-    time:    layout.time.enabled    ? <StandbyTime /> : null,
-    weather: layout.weather.enabled ? <StandbyWeather fields={layout.weatherFields} /> : null,
-    events:  layout.events.enabled  ? <TodayEventsDrawer corner={layout.events.corner} /> : null,
+    time:    safeLayout.time.enabled    ? <StandbyTime /> : null,
+    weather: safeLayout.weather.enabled ? <StandbyWeather fields={safeLayout.weatherFields} /> : null,
+    events:  safeLayout.events.enabled  ? <TodayEventsDrawer corner={safeLayout.events.corner} /> : null,
+    water:   safeLayout.water.enabled   ? <StandbyWater /> : null,
   }
 
   return (
@@ -101,8 +110,8 @@ export default function StandbyOverlay() {
         const isBottom = corner.includes('bottom')
 
         // Collect enabled elements for this corner in priority order
-        const items = layout.priority
-          .filter((id) => layout[id].enabled && layout[id].corner === corner)
+        const items = safeLayout.priority
+          .filter((id) => safeLayout[id].enabled && safeLayout[id].corner === corner)
           .map((id) => ({ id, node: elementNodes[id] }))
           .filter(({ node }) => node != null)
 

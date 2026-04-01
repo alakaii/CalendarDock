@@ -54,13 +54,29 @@ export const camerasService = {
       'pipe:1',
     ]
 
-    const proc = spawn('ffmpeg', ffmpegArgs)
+    let proc: ChildProcessWithoutNullStreams
+    try {
+      proc = spawn('ffmpeg', ffmpegArgs)
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        throw new Error('FFmpeg not found. Install it with: sudo apt install ffmpeg')
+      }
+      throw err
+    }
 
     const entry: StreamEntry = {
       process: proc,
       clients: new Set(),
       buffer: Buffer.alloc(0),
     }
+
+    proc.on('error', (err: any) => {
+      console.error(`[cameras] FFmpeg error for ${cameraId}:`, err.message)
+      for (const client of entry.clients) {
+        try { client.end() } catch { /* ignore */ }
+      }
+      streams.delete(cameraId)
+    })
 
     proc.stdout.on('data', (chunk: Buffer) => {
       for (const client of entry.clients) {

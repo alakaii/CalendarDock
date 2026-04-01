@@ -1,32 +1,32 @@
 import { useState } from 'react'
-import AccountManager from '../settings/AccountManager'
+import AccountsSettings from '../settings/AccountsSettings'
 import CalendarSelector from '../settings/CalendarSelector'
 import WeatherSettings from '../settings/WeatherSettings'
 import PhotoSettings from '../settings/PhotoSettings'
 import StandbySettings from '../settings/StandbySettings'
 import GeneralSettings from '../settings/GeneralSettings'
 import ChoresSettings from '../settings/ChoresSettings'
+import MealsSettings from '../settings/MealsSettings'
 import ListsSettings from '../settings/ListsSettings'
 import CameraSettings from '../settings/CameraSettings'
-import SprinklerSettings from '../settings/SprinklerSettings'
-import WaterHeaterSettings from '../settings/WaterHeaterSettings'
+import CameraWakeSettings from '../settings/CameraWakeSettings'
 
 type Section =
   | 'general' | 'accounts' | 'calendars' | 'weather' | 'photos' | 'standby'
-  | 'chores' | 'lists' | 'cameras' | 'sprinklers' | 'waterheater'
+  | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras'
 
 const navItems: { id: Section; label: string; icon: string }[] = [
-  { id: 'general',     label: 'General',      icon: '⚙️' },
-  { id: 'accounts',    label: 'Accounts',     icon: '👤' },
-  { id: 'calendars',   label: 'Calendars',    icon: '📅' },
-  { id: 'weather',     label: 'Weather',      icon: '🌤' },
-  { id: 'photos',      label: 'Photos',       icon: '🖼' },
-  { id: 'standby',     label: 'Standby',      icon: '💤' },
-  { id: 'chores',      label: 'Chores',       icon: '✅' },
-  { id: 'lists',       label: 'Lists',        icon: '📋' },
-  { id: 'cameras',     label: 'Cameras',      icon: '📹' },
-  { id: 'sprinklers',  label: 'Sprinklers',   icon: '💧' },
-  { id: 'waterheater', label: 'Water Heater', icon: '🔥' },
+  { id: 'general',   label: 'General',     icon: '⚙️' },
+  { id: 'accounts',  label: 'Accounts',    icon: '👤' },
+  { id: 'calendars', label: 'Calendars',   icon: '📅' },
+  { id: 'weather',   label: 'Weather',     icon: '🌤' },
+  { id: 'photos',    label: 'Photos',      icon: '🖼' },
+  { id: 'standby',   label: 'Standby',     icon: '💤' },
+  { id: 'wake',      label: 'Camera Wake', icon: '📷' },
+  { id: 'chores',    label: 'Chores',      icon: '✅' },
+  { id: 'meals',     label: 'Meals',       icon: '🍽' },
+  { id: 'lists',     label: 'Lists',       icon: '📋' },
+  { id: 'cameras',   label: 'Cameras',     icon: '📹' },
 ]
 
 export default function SettingsPage() {
@@ -64,17 +64,17 @@ export default function SettingsPage() {
         className="flex-1 overflow-y-auto p-6"
         style={{ color: 'var(--text-primary)' }}
       >
-        {section === 'general'     && <GeneralSettings />}
-        {section === 'accounts'    && <AccountManager />}
-        {section === 'calendars'   && <CalendarSelector />}
-        {section === 'weather'     && <WeatherSettings />}
-        {section === 'photos'      && <PhotoSettings />}
-        {section === 'standby'     && <StandbySettings />}
-        {section === 'chores'      && <ChoresSettings />}
-        {section === 'lists'       && <ListsSettings />}
-        {section === 'cameras'     && <CameraSettings />}
-        {section === 'sprinklers'  && <SprinklerSettings />}
-        {section === 'waterheater' && <WaterHeaterSettings />}
+        {section === 'general'   && <GeneralSettings />}
+        {section === 'accounts'  && <AccountsSettings />}
+        {section === 'calendars' && <CalendarSelector />}
+        {section === 'weather'   && <WeatherSettings />}
+        {section === 'photos'    && <PhotoSettings />}
+        {section === 'standby'   && <StandbySettings />}
+        {section === 'wake'      && <CameraWakeSettings />}
+        {section === 'chores'    && <ChoresSettings />}
+        {section === 'meals'     && <MealsSettings />}
+        {section === 'lists'     && <ListsSettings />}
+        {section === 'cameras'   && <CameraSettings />}
       </div>
     </div>
   )

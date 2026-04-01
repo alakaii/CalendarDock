@@ -28,6 +28,13 @@ interface SettingsState extends AppSettings {
   setCameras: (cameras: WyzeCamera[]) => void
   setRachioApiKey: (key: string) => void
   setRinnaiCredentials: (email: string, password: string) => void
+  setMealsGoogleTaskList: (accountId: string, taskListId: string) => void
+  setCameraWakeEnabled:    (enabled: boolean) => void
+  setDeepSleepSchedule:   (start: string, end: string) => void
+  setCameraWakeCalibration:(background: number[], threshold: number) => void
+  setCameraWakeThreshold:  (threshold: number) => void
+  setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => void
+  setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => void
 }
 
 const defaults: AppSettings = {
@@ -48,16 +55,24 @@ const defaults: AppSettings = {
     transitionDurationMs: 1500
   },
   standbyLayout: {
-    time:    { corner: 'top-left', enabled: true },
-    weather: { corner: 'top-left', enabled: true },
-    events:  { corner: 'top-left', enabled: true },
-    priority: ['time', 'weather', 'events'],
+    time:    { corner: 'top-left',     enabled: true },
+    weather: { corner: 'top-left',     enabled: true },
+    events:  { corner: 'top-left',     enabled: true },
+    water:   { corner: 'bottom-right', enabled: true },
+    priority: ['time', 'weather', 'events', 'water'],
     weatherFields: {
       temperature: true,
       feelsLike:   false,
       condition:   true,
       humidity:    false,
       city:        true
+    },
+    waterFields: {
+      timeRemaining:       true,
+      domesticTemperature: true,
+      recircTemperature:   true,
+      outletTemperature:   false,
+      inletTemperature:    false,
     }
   },
   standbyExitGesture: 'double-tap' as StandbyExitGesture,
@@ -69,7 +84,26 @@ const defaults: AppSettings = {
   cameras: [] as WyzeCamera[],
   rachioApiKey: '',
   rinnaiEmail: '',
-  rinnaiPassword: ''
+  rinnaiPassword: '',
+  mealsGoogleAccountId:  '',
+  mealsGoogleTaskListId: '',
+  dropboxAppKey:       '',
+  dropboxFolderPath:   '',
+  dropboxPhotoCount:   200,
+  dropboxEnabled:      false,
+  dropboxLastSync:     0,
+  dropboxAccountEmail: '',
+  cameraWakeEnabled:          false,
+  deepSleepStart:             '21:00',
+  deepSleepEnd:               '06:00',
+  cameraWakeThreshold:        0.15,
+  cameraWakePixelNoise:       20,
+  cameraWakeBackground:       null,
+  passiveStandbyMinutes:      5,
+  passiveBacklightOffMinutes: 15,
+  activeStandbyMinutes:       30,
+  motionSustainSeconds:       6,
+  activeHoldMinutes:          20,
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -222,5 +256,40 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setRinnaiCredentials: (email, password) => {
     window.api.settings.setRinnaiCredentials(email, password)
     set({ rinnaiEmail: email, rinnaiPassword: password })
-  }
+  },
+
+  setMealsGoogleTaskList: (accountId, taskListId) => {
+    window.api.settings.setMealsGoogleTaskList(accountId, taskListId)
+    set({ mealsGoogleAccountId: accountId, mealsGoogleTaskListId: taskListId })
+  },
+
+  setCameraWakeEnabled: (enabled) => {
+    window.api.settings.setCameraWakeEnabled(enabled)
+    set({ cameraWakeEnabled: enabled })
+  },
+
+  setDeepSleepSchedule: (start, end) => {
+    window.api.settings.setDeepSleepSchedule(start, end)
+    set({ deepSleepStart: start, deepSleepEnd: end })
+  },
+
+  setCameraWakeCalibration: (background, threshold) => {
+    window.api.settings.setCameraWakeCalibration(background, threshold)
+    set({ cameraWakeBackground: background, cameraWakeThreshold: threshold })
+  },
+
+  setCameraWakeThreshold: (threshold) => {
+    window.api.settings.setCameraWakeThreshold(threshold)
+    set({ cameraWakeThreshold: threshold })
+  },
+
+  setPassiveDaySettings: (standbyMinutes, backlightOffMinutes) => {
+    window.api.settings.setPassiveDaySettings(standbyMinutes, backlightOffMinutes)
+    set({ passiveStandbyMinutes: standbyMinutes, passiveBacklightOffMinutes: backlightOffMinutes })
+  },
+
+  setActiveDaySettings: (standbyMinutes, sustainSeconds, holdMinutes) => {
+    window.api.settings.setActiveDaySettings(standbyMinutes, sustainSeconds, holdMinutes)
+    set({ activeStandbyMinutes: standbyMinutes, motionSustainSeconds: sustainSeconds, activeHoldMinutes: holdMinutes })
+  },
 }))

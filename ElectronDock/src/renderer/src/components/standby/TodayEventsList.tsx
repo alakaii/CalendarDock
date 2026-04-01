@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { format, isToday, parseISO, startOfDay, endOfDay } from 'date-fns'
+import { format, isToday, parseISO } from 'date-fns'
 import { useQueryClient } from '@tanstack/react-query'
-import { useCalendarsStore } from '../../store/calendars.slice'
-import { useSettingsStore } from '../../store/settings.slice'
-import type { CalendarEvent, CalendarListItem } from '../../../../preload/types'
+import { useCalendars } from '../../hooks/useCalendars'
+import type { CalendarEvent } from '../../../../preload/types'
 
 export default function TodayEventsList() {
   const [expanded, setExpanded] = useState(false)
-  const calendarPreferences = useSettingsStore((s) => s.calendarPreferences)
   const queryClient = useQueryClient()
+  const { data: calendars = [] } = useCalendars()
 
   // Pull today's events from any cached event queries
   const allCachedData = queryClient.getQueriesData<CalendarEvent[]>({ queryKey: ['events'] })
@@ -61,7 +60,7 @@ export default function TodayEventsList() {
       {expanded && todayEvents.length > 0 && (
         <div className="max-h-[40vh] overflow-y-auto px-6 pb-4 space-y-2">
           {todayEvents.map((ev) => {
-            const color = calendarPreferences[ev.calendarId]?.colorOverride ?? '#4285F4'
+            const color = calendars.find((c) => c.id === ev.calendarId)?.backgroundColor ?? '#4285F4'
             return (
               <div key={ev.id} className="flex items-start gap-3 py-2">
                 <div className="w-1 h-full min-h-[20px] rounded-full flex-shrink-0 mt-0.5"

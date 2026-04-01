@@ -5,9 +5,7 @@ import type { ChoresList } from '../../../../preload/types'
 
 export default function ChoresSettings() {
   const accounts       = useSettingsStore((s) => s.accounts)
-  const choresMode     = useSettingsStore((s) => s.choresMode)
   const choresLists    = useSettingsStore((s) => s.choresLists)
-  const setChoresMode  = useSettingsStore((s) => s.setChoresMode)
   const setChoresLists = useSettingsStore((s) => s.setChoresLists)
   const addList        = useSettingsStore((s) => s.addList)
   const removeList     = useSettingsStore((s) => s.removeList)
@@ -66,31 +64,10 @@ export default function ChoresSettings() {
     <div className="space-y-8 max-w-xl">
       <h2 className="text-xl font-bold" style={sectionStyle}>Chores</h2>
 
-      {/* Mode toggle */}
-      <div className="space-y-2">
-        <p style={labelStyle}>Data source</p>
-        <div className="flex gap-2">
-          {(['local', 'google'] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setChoresMode(m)}
-              className="px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors min-h-[44px]"
-              style={{
-                background: choresMode === m ? '#3b82f6' : 'var(--card-bg)',
-                border: `1px solid ${choresMode === m ? '#3b82f6' : 'var(--card-border)'}`,
-                color: choresMode === m ? '#fff' : 'var(--text-primary)',
-              }}
-            >
-              {m === 'local' ? 'Local (offline)' : 'Google Tasks'}
-            </button>
-          ))}
-        </div>
-        {choresMode === 'google' && accounts.length === 0 && (
-          <p className="text-sm mt-1" style={{ color: '#f59e0b' }}>
-            No Google accounts connected — add one in Accounts settings.
-          </p>
-        )}
-      </div>
+      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        Each chore list works offline by default. Optionally link any list to a Google Tasks list
+        to sync tasks with Google — each list can be independently local or Google-backed.
+      </p>
 
       {/* Chore lists */}
       <div className="space-y-3">
@@ -174,12 +151,16 @@ export default function ChoresSettings() {
                 )}
               </div>
 
-              {/* Google Task list link (only in google mode) */}
-              {choresMode === 'google' && (
-                <div className="flex items-center gap-2 pl-1">
-                  <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
-                    Linked list:
+              {/* Google Tasks link — always visible, each list independently local or Google */}
+              <div className="flex items-center gap-2 pl-1">
+                <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                  Google Tasks:
+                </span>
+                {accounts.length === 0 ? (
+                  <span className="text-xs italic" style={{ color: 'var(--text-secondary)' }}>
+                    No account connected
                   </span>
+                ) : (
                   <select
                     value={
                       cl.googleAccountId && cl.googleTaskListId
@@ -194,7 +175,7 @@ export default function ChoresSettings() {
                       color: 'var(--text-primary)',
                     }}
                   >
-                    <option value="">— not linked —</option>
+                    <option value="">— offline only —</option>
                     {googleTaskLists.map((tl) => {
                       const account = accounts.find((a) => a.id === tl.accountId)
                       return (
@@ -204,8 +185,8 @@ export default function ChoresSettings() {
                       )
                     })}
                   </select>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
         </div>

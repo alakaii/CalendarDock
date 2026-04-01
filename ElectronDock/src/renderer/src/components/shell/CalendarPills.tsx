@@ -3,42 +3,40 @@ import { useSettingsStore } from '../../store/settings.slice'
 import { useUIStore } from '../../store/ui.slice'
 
 export default function CalendarPills() {
-  const activePage = useUIStore((s) => s.activePage)
+  const activePage       = useUIStore((s) => s.activePage)
+  const chipHiddenIds    = useUIStore((s) => s.chipHiddenIds)
+  const toggleChipHidden = useUIStore((s) => s.toggleChipHidden)
   const calendarPreferences = useSettingsStore((s) => s.calendarPreferences)
-  const setCalendarVisible = useSettingsStore((s) => s.setCalendarVisible)
   const { data: calendars = [] } = useCalendars()
 
-  // Only show pills on the calendar page
+
   if (activePage !== 'calendar') return null
+
+  // Only show calendars enabled in Settings → Calendars
+  const enabledCalendars = calendars.filter((cal) => calendarPreferences[cal.id]?.visible !== false)
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {calendars.map((cal) => {
-        const pref = calendarPreferences[cal.id]
-        const visible = pref?.visible !== false
-        const color = pref?.colorOverride ?? cal.backgroundColor
+      {enabledCalendars.map((cal) => {
+        const color     = cal.backgroundColor
+        const isHidden  = chipHiddenIds.has(cal.id)
 
         return (
           <button
             key={cal.id}
-            onClick={() => setCalendarVisible(cal.id, !visible)}
-            className={`
-              flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
-              transition-all duration-150 min-h-[32px] border
-              ${visible ? 'text-white border-transparent' : 'bg-transparent border-current opacity-50'}
-            `}
+            onClick={() => toggleChipHidden(cal.id)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold min-h-[40px] border transition-all duration-150"
             style={
-              visible
-                ? { backgroundColor: color, borderColor: color }
-                : { color, borderColor: color }
+              isHidden
+                ? { background: 'transparent', borderColor: color, color, opacity: 0.5 }
+                : { backgroundColor: color, borderColor: color, color: '#fff' }
             }
-            aria-pressed={visible}
-            aria-label={`${visible ? 'Hide' : 'Show'} ${cal.summary}`}
+            aria-pressed={!isHidden}
+            aria-label={`${isHidden ? 'Show' : 'Hide'} ${cal.summary}`}
           >
-            {/* Dot indicator */}
             <span
               className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: visible ? 'rgba(255,255,255,0.8)' : color }}
+              style={{ backgroundColor: isHidden ? color : 'rgba(255,255,255,0.8)' }}
             />
             <span className="max-w-[100px] truncate">{cal.summary}</span>
           </button>

@@ -63,16 +63,32 @@ function TaskRow({
 
 // ---------- Google Tasks view ----------
 function GoogleListsView() {
-  const accounts         = useSettingsStore((s) => s.accounts)
-  const listsFilter      = useSettingsStore((s) => s.listsFilter)
-  const listsSelectedIds = useSettingsStore((s) => s.listsSelectedIds)
-  const accountIds       = accounts.map((a) => a.id)
+  const accounts              = useSettingsStore((s) => s.accounts)
+  const listsFilter           = useSettingsStore((s) => s.listsFilter)
+  const listsSelectedIds      = useSettingsStore((s) => s.listsSelectedIds)
+  const choresLists           = useSettingsStore((s) => s.choresLists)
+  const mealsGoogleAccountId  = useSettingsStore((s) => s.mealsGoogleAccountId)
+  const mealsGoogleTaskListId = useSettingsStore((s) => s.mealsGoogleTaskListId)
+  const accountIds            = accounts.map((a) => a.id)
+
+  // Build set of Google Tasks list IDs reserved by Chores or Meals
+  const reservedIds = new Set<string>([
+    ...choresLists
+      .filter((cl) => cl.googleAccountId && cl.googleTaskListId)
+      .map((cl) => `${cl.googleAccountId}::${cl.googleTaskListId}`),
+    ...(mealsGoogleAccountId && mealsGoogleTaskListId
+      ? [`${mealsGoogleAccountId}::${mealsGoogleTaskListId}`]
+      : [])
+  ])
 
   const { data: allTaskLists = [], isLoading: listsLoading } = useGoogleTaskLists(accountIds)
 
+  // Filter out reserved lists, then apply user filter
+  const availableLists = allTaskLists.filter((tl) => !reservedIds.has(`${tl.accountId}::${tl.id}`))
+
   const taskLists = listsFilter === 'selected' && listsSelectedIds.length > 0
-    ? allTaskLists.filter((tl) => listsSelectedIds.includes(`${tl.accountId}::${tl.id}`))
-    : allTaskLists
+    ? availableLists.filter((tl) => listsSelectedIds.includes(`${tl.accountId}::${tl.id}`))
+    : availableLists
 
   const [selected, setSelected] = useState<GTaskList | null>(null)
   const activeList = selected ?? taskLists[0] ?? null
@@ -120,6 +136,8 @@ function GoogleListsView() {
           <p className="text-xs text-center py-8 px-3 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {listsFilter === 'selected'
               ? 'No lists selected — go to Settings → Lists to choose which to show.'
+              : reservedIds.size > 0
+              ? `No lists available — ${reservedIds.size} list${reservedIds.size > 1 ? 's are' : ' is'} reserved by Chores or Meals.`
               : 'No task lists found — create one in Google Tasks on your phone first.'}
           </p>
         ) : (

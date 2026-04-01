@@ -78,7 +78,7 @@ export interface SlideshowSettings {
 
 export type StandbyExitGesture = 'single-tap' | 'double-tap'
 export type StandbyCorner      = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
-export type StandbyElementId = 'time' | 'weather' | 'events'
+export type StandbyElementId = 'time' | 'weather' | 'events' | 'water'
 
 export interface StandbyWeatherFields {
   temperature: boolean
@@ -93,13 +93,23 @@ export interface StandbyElementConfig {
   enabled: boolean
 }
 
+export interface StandbyWaterFields {
+  timeRemaining:          boolean
+  domesticTemperature:    boolean
+  recircTemperature:      boolean
+  outletTemperature:      boolean
+  inletTemperature:       boolean
+}
+
 export interface StandbyLayout {
   time:    StandbyElementConfig
   weather: StandbyElementConfig
   events:  StandbyElementConfig
+  water:   StandbyElementConfig
   /** Priority order — index 0 = highest (rendered first / closest to corner edge) */
   priority:      StandbyElementId[]
   weatherFields: StandbyWeatherFields
+  waterFields:   StandbyWaterFields
 }
 
 // ---- New for UI redesign ----
@@ -150,6 +160,10 @@ export interface RinnaiDevice {
   setTemp: number
   isHeating: boolean
   recirculationEnabled: boolean
+  domesticTemperature?: number
+  recirculationTemperature?: number
+  outletTemperature?: number
+  inletTemperature?: number
 }
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
@@ -220,6 +234,28 @@ export interface AppSettings {
   rachioApiKey:     string
   rinnaiEmail:      string
   rinnaiPassword:   string
+  // Meals Google Tasks link (optional)
+  mealsGoogleAccountId:  string
+  mealsGoogleTaskListId: string
+  // Dropbox (tokens stored encrypted in main process only — not in this object)
+  dropboxAppKey:       string
+  dropboxFolderPath:   string
+  dropboxPhotoCount:   number
+  dropboxEnabled:      boolean
+  dropboxLastSync:     number
+  dropboxAccountEmail: string
+  // Camera wake
+  cameraWakeEnabled:          boolean
+  deepSleepStart:             string    // "HH:MM", default "21:00" — when deep sleep begins
+  deepSleepEnd:               string    // "HH:MM", default "06:00" — when deep sleep ends
+  cameraWakeThreshold:        number    // 0.0–1.0, set during calibration
+  cameraWakePixelNoise:       number    // per-pixel diff floor 0–255, default 20
+  cameraWakeBackground:       number[] | null  // 19,200 grayscale values (160×120), null = not calibrated
+  passiveStandbyMinutes:      number   // standby timeout in passive mode, default 5
+  passiveBacklightOffMinutes: number   // minutes in standby before backlight off (passive), default 15
+  activeStandbyMinutes:       number   // standby timeout in active mode, default 30
+  motionSustainSeconds:       number   // seconds of sustained motion to switch to active, default 6
+  activeHoldMinutes:          number   // minutes of no sustained motion before returning to passive, default 20
 }
 
 export interface WeatherData {
@@ -284,6 +320,21 @@ export interface CalendarDockAPI {
     setCameras:          (cameras: WyzeCamera[]) => Promise<void>
     setRachioApiKey:     (key: string) => Promise<void>
     setRinnaiCredentials:(email: string, password: string) => Promise<void>
+    setMealsGoogleTaskList: (accountId: string, taskListId: string) => Promise<void>
+    setCameraWakeEnabled:    (enabled: boolean) => Promise<void>
+    setDeepSleepSchedule:   (start: string, end: string) => Promise<void>
+    setCameraWakeCalibration:(background: number[], threshold: number) => Promise<void>
+    setCameraWakeThreshold:  (threshold: number) => Promise<void>
+    setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => Promise<void>
+    setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => Promise<void>
+  }
+  dropbox: {
+    connect:      (appKey: string) => Promise<{ email: string }>
+    disconnect:   () => Promise<void>
+    syncNow:      () => Promise<void>
+    getStatus:    () => Promise<{ connected: boolean; email: string; lastSync: number; isSyncing: boolean }>
+    setConfig:    (cfg: { folderPath?: string; photoCount?: number; enabled?: boolean }) => Promise<void>
+    onProgress:   (cb: (pct: number, status: string) => void) => void
   }
   cameras: {
     startStream:    (cameraId: string) => Promise<string>   // returns local MJPEG URL
@@ -318,10 +369,19 @@ export interface CalendarDockAPI {
   photos: {
     getList: () => Promise<string[]>
     onListUpdated: (cb: (list: string[]) => void) => void
+    /** Signal that the slideshow advanced to the next photo. */
+    advance: () => Promise<void>
+    /** Pause / resume background downloads (pause while user is active). */
+    setPaused: (paused: boolean) => Promise<void>
+    /** Dawn signal — end of deep sleep. Refreshes Dropbox index + tops up cache. */
+    wakeFromDeepSleep: () => Promise<void>
   }
   weather: {
     fetch: () => Promise<WeatherData>
     fetchForecast: () => Promise<WeatherForecastDay[]>
+  }
+  system: {
+    setDisplayPower: (on: boolean) => Promise<void>
   }
 }
 

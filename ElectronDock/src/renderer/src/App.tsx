@@ -5,11 +5,21 @@ import { useInactivityTimer } from './hooks/useInactivityTimer'
 import { useTheme } from './hooks/useTheme'
 import AppShell from './components/shell/AppShell'
 import StandbyOverlay from './components/standby/StandbyOverlay'
+import CameraWatcher from './components/shell/CameraWatcher'
 
 export default function App() {
-  const mode             = useUIStore((s) => s.mode)
-  const standbyTimeoutMs = useSettingsStore((s) => s.standbyTimeoutMinutes * 60 * 1000)
-  const loadSettings     = useSettingsStore((s) => s.loadFromMain)
+  const mode                  = useUIStore((s) => s.mode)
+  const dayMode               = useUIStore((s) => s.dayMode)
+  const loadSettings          = useSettingsStore((s) => s.loadFromMain)
+  const cameraWakeEnabled     = useSettingsStore((s) => s.cameraWakeEnabled)
+  const passiveStandbyMinutes = useSettingsStore((s) => s.passiveStandbyMinutes)
+  const activeStandbyMinutes  = useSettingsStore((s) => s.activeStandbyMinutes)
+  const standbyTimeoutMinutes = useSettingsStore((s) => s.standbyTimeoutMinutes)
+
+  // When camera wake is on, use mode-specific timeouts; otherwise fall back to the manual setting
+  const standbyTimeoutMs = cameraWakeEnabled
+    ? (dayMode === 'active' ? activeStandbyMinutes : passiveStandbyMinutes) * 60_000
+    : standbyTimeoutMinutes * 60_000
 
   // Load settings from main process on startup
   useEffect(() => {
@@ -22,9 +32,10 @@ export default function App() {
   // Always-active inactivity timer — switches to standby after timeout
   useInactivityTimer(standbyTimeoutMs)
 
-  if (mode === 'standby') {
-    return <StandbyOverlay />
-  }
-
-  return <AppShell />
+  return (
+    <>
+      <CameraWatcher />
+      {mode === 'standby' ? <StandbyOverlay /> : <AppShell />}
+    </>
+  )
 }

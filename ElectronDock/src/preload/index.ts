@@ -63,7 +63,32 @@ const api: CalendarDockAPI = {
     setRachioApiKey: (key) =>
       ipcRenderer.invoke('settings:set-rachio-api-key', { key }),
     setRinnaiCredentials: (email, password) =>
-      ipcRenderer.invoke('settings:set-rinnai-credentials', { email, password })
+      ipcRenderer.invoke('settings:set-rinnai-credentials', { email, password }),
+    setMealsGoogleTaskList: (accountId, taskListId) =>
+      ipcRenderer.invoke('settings:set-meals-google-task-list', { accountId, taskListId }),
+    setCameraWakeEnabled: (enabled) =>
+      ipcRenderer.invoke('settings:set-camera-wake-enabled', { enabled }),
+    setDeepSleepSchedule: (start, end) =>
+      ipcRenderer.invoke('settings:set-deep-sleep-schedule', { start, end }),
+    setCameraWakeCalibration: (background, threshold) =>
+      ipcRenderer.invoke('settings:set-camera-wake-calibration', { background, threshold }),
+    setCameraWakeThreshold: (threshold) =>
+      ipcRenderer.invoke('settings:set-camera-wake-threshold', { threshold }),
+    setPassiveDaySettings: (standbyMinutes, backlightOffMinutes) =>
+      ipcRenderer.invoke('settings:set-passive-day', { standbyMinutes, backlightOffMinutes }),
+    setActiveDaySettings: (standbyMinutes, sustainSeconds, holdMinutes) =>
+      ipcRenderer.invoke('settings:set-active-day', { standbyMinutes, sustainSeconds, holdMinutes }),
+  },
+
+  dropbox: {
+    connect:    (appKey) => ipcRenderer.invoke('dropbox:connect', { appKey }),
+    disconnect: ()       => ipcRenderer.invoke('dropbox:disconnect'),
+    syncNow:    ()       => ipcRenderer.invoke('dropbox:sync-now'),
+    getStatus:  ()       => ipcRenderer.invoke('dropbox:get-status'),
+    setConfig:  (cfg)    => ipcRenderer.invoke('dropbox:set-config', cfg),
+    onProgress: (cb) => {
+      ipcRenderer.on('dropbox:progress', (_event, data) => cb(data.pct, data.status))
+    },
   },
 
   cameras: {
@@ -111,16 +136,23 @@ const api: CalendarDockAPI = {
   },
 
   photos: {
-    getList: () => ipcRenderer.invoke('photos:get-list'),
+    getList:           () => ipcRenderer.invoke('photos:get-list'),
+    advance:           () => ipcRenderer.invoke('photos:advance'),
+    setPaused:         (paused) => ipcRenderer.invoke('photos:set-paused', { paused }),
+    wakeFromDeepSleep: () => ipcRenderer.invoke('photos:wake-from-deep-sleep'),
     onListUpdated: (cb) => {
       ipcRenderer.on('photos:list-updated', (_event, list) => cb(list))
-    }
+    },
   },
 
   weather: {
     fetch:         () => ipcRenderer.invoke('weather:fetch'),
     fetchForecast: () => ipcRenderer.invoke('weather:fetch-forecast')
-  }
+  },
+
+  system: {
+    setDisplayPower: (on) => ipcRenderer.invoke('system:set-display-power', { on }),
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

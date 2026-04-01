@@ -1,14 +1,15 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { EventClickArg, DateClickArg, EventInput } from '@fullcalendar/core'
-import { format } from 'date-fns'
 import { useCalendars } from '../../hooks/useCalendars'
 import { useCalendarEvents } from '../../hooks/useCalendarEvents'
 import { useSettingsStore } from '../../store/settings.slice'
+import { useUIStore } from '../../store/ui.slice'
 import { useSwipeGesture } from '../../hooks/useSwipeGesture'
+import { calendarBridge } from '../../bridge/calendarBridge'
 import EventPopover from './EventPopover'
 import AddEventModal from './AddEventModal'
 import type { CalendarEvent } from '../../../../preload/types'
@@ -18,17 +19,74 @@ type CalView = 'dayGridMonth' | 'timeGridWeek'
 export default function CalendarView() {
   const calendarRef  = useRef<FullCalendar>(null)
   const containerRef = useRef<HTMLDivElement>(null!)
-  const [currentDate, setCurrentDate]   = useState(new Date())
-  const [view, setView]                 = useState<CalView>('timeGridWeek')
+  const fcWrapRef    = useRef<HTMLDivElement>(null)
+
+  const [currentDate, setCurrentDate]     = useState(new Date())
+  const [view, setView]                   = useState<CalView>('timeGridWeek')
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [addEventDate, setAddEventDate]   = useState<string | null>(null)
+  // Exact slot height in px, computed from the actual rendered scroller height
+  const [slotPx, setSlotPx]               = useState<number | null>(null)
 
-  const calendarPreferences = useSettingsStore((s) => s.calendarPreferences)
+  const calendarPreferences  = useSettingsStore((s) => s.calendarPreferences)
+  const chipHiddenIds        = useUIStore((s) => s.chipHiddenIds)
+  const setCalendarDate      = useUIStore((s) => s.setCalendarDate)
+  const setCalendarView      = useUIStore((s) => s.setCalendarView)
   const { data: calendars = [] } = useCalendars()
   const { data: events = [] }    = useCalendarEvents(currentDate, calendars)
 
-  // Filter out hidden calendars
-  const visibleEvents = events.filter((ev) => calendarPreferences[ev.calendarId]?.visible !== false)
+  // Filter: settings-level exclusions AND session chip-level hides
+  const visibleEvents = events.filter((ev) =>
+    calendarPreferences[ev.calendarId]?.visible !== false &&
+    !chipHiddenIds.has(ev.calendarId)
+  )
+
+  // Dynamically compute the visible hour range.
+  // Baseline 7am–7pm; expands by whole hours to contain any visible timed event.
+  const { slotMinTime, slotMaxTime, numSlots } = useMemo(() => {
+    const pad = (h: number) => `${String(h).padStart(2, '0')}:00:00`
+    if (view !== 'timeGridWeek') {
+      return { slotMinTime: pad(7), slotMaxTime: pad(19), numSlots: 24 }
+    }
+
+    let minH = 7
+    let maxH = 19
+
+    for (const ev of visibleEvents) {
+      if (ev.allDay) continue
+      const start  = new Date(ev.start)
+      const end    = new Date(ev.end)
+      const startH = start.getHours() + start.getMinutes() / 60
+      const endH   = end.getHours()   + end.getMinutes()   / 60
+      if (startH < minH) minH = Math.max(0,  Math.floor(startH))
+      if (endH   > maxH) maxH = Math.min(24, Math.ceil(endH))
+    }
+
+    return { slotMinTime: pad(minH), slotMaxTime: pad(maxH), numSlots: (maxH - minH) * 2 }
+  }, [visibleEvents, view])
+
+  // After each render (and whenever the range or view changes), measure the
+  // actual height of FullCalendar's scroll body and compute the exact slot px
+  // so all slots fit perfectly with zero scroll.
+  useEffect(() => {
+    if (view !== 'timeGridWeek') { setSlotPx(null); return }
+
+    const measure = () => {
+      const wrap = fcWrapRef.current
+      if (!wrap) return
+      // .fc-scroller-harness is the element whose clientHeight = available space for time slots
+      const harness = wrap.querySelector<HTMLElement>('.fc-scroller-harness')
+      if (!harness) return
+      const h = harness.clientHeight
+      if (h > 0 && numSlots > 0) {
+        setSlotPx(Math.floor(h / numSlots))
+      }
+    }
+
+    // Let FullCalendar finish its own render/layout pass before measuring
+    const id = setTimeout(measure, 0)
+    return () => clearTimeout(id)
+  }, [slotMinTime, slotMaxTime, numSlots, view, visibleEvents.length])
 
   // Pick black or white text based on the event background luminance
   function contrastColor(hex: string): string {
@@ -43,8 +101,7 @@ export default function CalendarView() {
   // Convert to FullCalendar format
   const fcEvents: EventInput[] = visibleEvents.map((ev) => {
     const cal = calendars.find((c) => c.id === ev.calendarId)
-    const colorOverride = calendarPreferences[ev.calendarId]?.colorOverride
-    const bg = colorOverride ?? cal?.backgroundColor ?? '#4285F4'
+    const bg = cal?.backgroundColor ?? '#4285F4'
     return {
       id: ev.id,
       title: ev.title,
@@ -64,13 +121,26 @@ export default function CalendarView() {
     if (dir === 'prev') api.prev()
     else if (dir === 'next') api.next()
     else api.today()
-    setCurrentDate(api.getDate())
-  }, [])
+    const newDate = api.getDate()
+    setCurrentDate(newDate)
+    setCalendarDate(newDate)
+  }, [setCalendarDate])
 
-  const handleViewChange = (v: CalView) => {
+  const handleViewChange = useCallback((v: CalView) => {
     setView(v)
+    setCalendarView(v)
     calendarRef.current?.getApi().changeView(v)
-  }
+  }, [setCalendarView])
+
+  // Register imperative bridge handlers so AppHeader can drive this calendar
+  useEffect(() => {
+    calendarBridge.navigate   = handleNavigate
+    calendarBridge.changeView = handleViewChange
+    return () => {
+      calendarBridge.navigate   = null
+      calendarBridge.changeView = null
+    }
+  }, [handleNavigate, handleViewChange])
 
   useSwipeGesture(containerRef, {
     onSwipeLeft:  () => handleNavigate('next'),
@@ -87,86 +157,36 @@ export default function CalendarView() {
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-surface)' }}>
-
-      {/* Internal calendar toolbar */}
-      <div
-        className="flex items-center justify-between px-4 py-2 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
-        {/* Month / week label + Today */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {view === 'dayGridMonth'
-              ? format(currentDate, 'MMMM yyyy')
-              : format(currentDate, 'MMMM yyyy')
-            }
-          </span>
-          <button
-            onClick={() => handleNavigate('today')}
-            className="text-xs px-2.5 py-1 rounded-md font-semibold"
-            style={{ color: '#3b82f6' }}
-          >
-            Today
-          </button>
+      {/* FullCalendar — fills all remaining height */}
+      <div ref={containerRef} className="flex-1 relative overflow-hidden">
+        <div ref={fcWrapRef} className="absolute inset-0">
+          {/* Force exact slot height so all slots fit without scrolling.
+              overflow:hidden kills the reserved scrollbar gutter. */}
+          {slotPx !== null && (
+            <style>{`
+              .fc-timegrid-slot         { height: ${slotPx}px !important; }
+              .fc-timegrid .fc-scroller { overflow: hidden !important; }
+            `}</style>
+          )}
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            initialView={view}
+            headerToolbar={false}
+            events={fcEvents}
+            height="100%"
+            expandRows={true}
+            eventDisplay="block"
+            dayMaxEvents={4}
+            nowIndicator={true}
+            slotMinTime={slotMinTime}
+            slotMaxTime={slotMaxTime}
+            eventClick={handleEventClick}
+            dateClick={handleDateClick}
+            eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
+            slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short', hour12: true }}
+          />
         </div>
-
-        {/* View toggle: Week | Month */}
-        <div
-          className="flex rounded-lg overflow-hidden text-sm"
-          style={{ border: '1px solid var(--border)' }}
-        >
-          {(['timeGridWeek', 'dayGridMonth'] as CalView[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => handleViewChange(v)}
-              className="px-4 py-1.5 font-medium transition-colors min-h-[36px]"
-              style={{
-                background: view === v ? '#3b82f6' : 'transparent',
-                color: view === v ? '#fff' : 'var(--text-secondary)',
-              }}
-            >
-              {v === 'timeGridWeek' ? 'Week' : 'Month'}
-            </button>
-          ))}
-        </div>
-
-        {/* Prev / Next */}
-        <div className="flex items-center gap-1">
-          {(['prev', 'next'] as const).map((dir) => (
-            <button
-              key={dir}
-              onClick={() => handleNavigate(dir)}
-              className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
-              style={{ color: 'var(--text-secondary)' }}
-              aria-label={dir === 'prev' ? 'Previous' : 'Next'}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round"
-                  d={dir === 'prev' ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} />
-              </svg>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* FullCalendar */}
-      <div ref={containerRef} className="flex-1 overflow-hidden p-1">
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView={view}
-          headerToolbar={false}
-          events={fcEvents}
-          height="100%"
-          eventDisplay="block"
-          dayMaxEvents={4}
-          nowIndicator={true}
-          scrollTime="08:00:00"
-          eventClick={handleEventClick}
-          dateClick={handleDateClick}
-          eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
-          slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short', hour12: true }}
-        />
       </div>
 
       {selectedEvent && (

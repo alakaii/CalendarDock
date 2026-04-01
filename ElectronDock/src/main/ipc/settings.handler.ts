@@ -180,4 +180,53 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
       settingsService.setRinnaiCredentials(email, password)
     }
   )
+
+  ipcMain.handle(
+    'settings:set-meals-google-task-list',
+    async (_event, { accountId, taskListId }: { accountId: string; taskListId: string }) => {
+      settingsService.setMealsGoogleTaskList(accountId, taskListId)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-camera-wake-enabled',
+    async (_event, { enabled }: { enabled: boolean }) => {
+      settingsService.setCameraWakeEnabled(enabled)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-deep-sleep-schedule',
+    async (_event, { start, end }: { start: string; end: string }) => {
+      settingsService.setDeepSleepSchedule(start, end)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-camera-wake-calibration',
+    async (_event, { background, threshold }: { background: number[]; threshold: number }) => {
+      settingsService.setCameraWakeCalibration(background, threshold)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-camera-wake-threshold',
+    async (_event, { threshold }: { threshold: number }) => {
+      settingsService.setCameraWakeThreshold(threshold)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-passive-day',
+    async (_event, { standbyMinutes, backlightOffMinutes }: { standbyMinutes: number; backlightOffMinutes: number }) => {
+      settingsService.setPassiveDaySettings(standbyMinutes, backlightOffMinutes)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-active-day',
+    async (_event, { standbyMinutes, sustainSeconds, holdMinutes }: { standbyMinutes: number; sustainSeconds: number; holdMinutes: number }) => {
+      settingsService.setActiveDaySettings(standbyMinutes, sustainSeconds, holdMinutes)
+    }
+  )
 }

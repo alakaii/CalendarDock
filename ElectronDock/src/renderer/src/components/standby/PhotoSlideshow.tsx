@@ -86,6 +86,8 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
           } else {
             setFrontIndex(safeIndex)
           }
+          // Notify the queue manager that one slide was shown
+          window.api.photos.advance().catch(() => {})
           return !prev
         })
       }, intervalMs)
@@ -127,6 +129,9 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       }
       showFrontRef.current = !isFront
       setShowFront(!isFront)
+
+      // Notify the queue manager that a slide was shown (manual navigation)
+      window.api.photos.advance().catch(() => {})
 
       // Give the new photo its full display duration
       restartInterval()

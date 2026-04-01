@@ -1,18 +1,11 @@
 import { useCalendars } from '../../hooks/useCalendars'
 import { useSettingsStore } from '../../store/settings.slice'
 
-const PRESET_COLORS = [
-  '#4285F4', '#0F9D58', '#DB4437', '#F4B400',
-  '#9C27B0', '#00BCD4', '#FF5722', '#795548',
-  '#607D8B', '#E91E63', '#009688', '#FF9800'
-]
-
 export default function CalendarSelector() {
   const { data: calendars = [], isLoading, isError, error, refetch } = useCalendars()
   const calendarPreferences = useSettingsStore((s) => s.calendarPreferences)
   const setCalendarVisible = useSettingsStore((s) => s.setCalendarVisible)
   const setAllCalendarsVisible = useSettingsStore((s) => s.setAllCalendarsVisible)
-  const setCalendarColor = useSettingsStore((s) => s.setCalendarColor)
   const accounts = useSettingsStore((s) => s.accounts)
 
   if (isLoading) {
@@ -123,9 +116,8 @@ export default function CalendarSelector() {
 
               <div className="space-y-1">
                 {cals.map((cal) => {
-                  const pref = calendarPreferences[cal.id]
-                  const isVisible = pref?.visible !== false
-                  const color = pref?.colorOverride ?? cal.backgroundColor
+                  const isVisible = calendarPreferences[cal.id]?.visible !== false
+                  const color = cal.backgroundColor
 
                   return (
                     <div key={cal.id} className="flex items-center gap-3 py-2">
@@ -155,22 +147,6 @@ export default function CalendarSelector() {
                       >
                         {cal.summary}
                       </span>
-
-                      {/* Color swatches */}
-                      <div className="flex gap-1">
-                        {PRESET_COLORS.map((c) => (
-                          <button
-                            key={c}
-                            onClick={() => setCalendarColor(cal.id, c)}
-                            className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
-                            style={{
-                              backgroundColor: c,
-                              borderColor: color === c ? 'white' : 'transparent'
-                            }}
-                            title={c}
-                          />
-                        ))}
-                      </div>
                     </div>
                   )
                 })}

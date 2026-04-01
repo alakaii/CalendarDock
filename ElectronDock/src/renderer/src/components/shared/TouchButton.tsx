@@ -2,7 +2,7 @@ import { type ButtonHTMLAttributes } from 'react'
 import { clsx } from 'clsx'
 
 interface TouchButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'ghost' | 'primary'
+  variant?: 'default' | 'ghost' | 'primary' | 'secondary' | 'destructive'
 }
 
 export function TouchButton({ children, className, variant = 'default', ...props }: TouchButtonProps) {
@@ -16,7 +16,9 @@ export function TouchButton({ children, className, variant = 'default', ...props
         {
           'bg-white/10 hover:bg-white/20 text-white': variant === 'default',
           'hover:bg-white/10 text-white': variant === 'ghost',
-          'bg-blue-500 hover:bg-blue-600 text-white font-semibold': variant === 'primary'
+          'bg-blue-500 hover:bg-blue-600 text-white font-semibold': variant === 'primary',
+          'bg-white/10 hover:bg-white/20 text-white border border-white/20': variant === 'secondary',
+          'bg-red-500/80 hover:bg-red-600 text-white font-semibold': variant === 'destructive',
         },
         className
       )}

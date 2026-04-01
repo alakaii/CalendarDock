@@ -16,15 +16,15 @@ export default function AppShell() {
 
   return (
     <div
-      className="flex w-screen h-screen overflow-hidden"
+      className="flex flex-col w-screen h-screen overflow-hidden"
       style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
     >
-      {/* Left sidebar */}
-      <Sidebar />
+      {/* Full-width header — spans sidebar + content */}
+      <AppHeader />
 
-      {/* Main content: header + page */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <AppHeader />
+      {/* Below header: sidebar + page content side-by-side */}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
 
         <main className="flex-1 overflow-hidden">
           {activePage === 'calendar'    && <CalendarView />}

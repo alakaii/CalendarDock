@@ -2,14 +2,31 @@ import { config as loadDotEnv } from 'dotenv'
 import { resolve as resolvePath } from 'path'
 
 // Load .env from project root before anything else
-loadDotEnv({ path: resolvePath(__dirname, '../../.env') })
+loadDotEnv({ path: resolvePath(__dirname, '../../.env'), quiet: true })
 
-import { app, BrowserWindow, protocol } from 'electron'
+import { app, BrowserWindow, protocol, powerSaveBlocker } from 'electron'
 import { createWindow } from './window'
 import { registerIpcHandlers } from './ipc'
 import { authService } from './services/auth.service'
 import { photosService } from './services/photos.service'
 import { settingsService } from './services/settings.service'
+import { photoQueueService } from './services/photoQueue.service'
+import { is } from '@electron-toolkit/utils'
+
+// ── Kiosk / touchscreen flags (must be set before app.ready) ────────────────
+// Enable capacitive touch events in Chromium
+app.commandLine.appendSwitch('touch-events', 'enabled')
+app.commandLine.appendSwitch('enable-touch-drag-drop')
+// Disable pinch-to-zoom (prevents accidental zoom on touchscreen)
+app.commandLine.appendSwitch('disable-pinch')
+// Use the primary display at native resolution
+app.commandLine.appendSwitch('force-device-scale-factor', '1')
+// Smooth scrolling on touch
+app.commandLine.appendSwitch('enable-features', 'SmoothScrolling')
+// Disable the "Press Escape to exit fullscreen" overlay in production
+if (!is.dev) {
+  app.commandLine.appendSwitch('disable-features', 'ExitFullscreenOnEscape')
+}
 
 // Register cdphoto:// before app.ready (photos slideshow protocol)
 protocol.registerSchemesAsPrivileged([
@@ -35,6 +52,10 @@ if (!gotLock) {
   })
 
   app.whenReady().then(async () => {
+    // Prevent display sleep and app suspension — 24/7 kiosk operation
+    powerSaveBlocker.start('prevent-display-sleep')
+    powerSaveBlocker.start('prevent-app-suspension')
+
     const win = createWindow()
 
     // Register custom photo protocol handler
@@ -49,11 +70,8 @@ if (!gotLock) {
     // Restore saved OAuth clients
     await authService.initialize()
 
-    // Start photo watcher if folder is configured
-    const settings = settingsService.getAll()
-    if (settings.photoFolderPath) {
-      photosService.startWatcher(settings.photoFolderPath, win)
-    }
+    // Initialize rolling photo cache queue (handles both local and Dropbox modes)
+    await photoQueueService.initialize(win)
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -61,6 +79,7 @@ if (!gotLock) {
   })
 
   app.on('window-all-closed', () => {
+    photoQueueService.stop()
     photosService.stopWatcher()
     if (process.platform !== 'darwin') app.quit()
   })

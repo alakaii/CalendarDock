@@ -15,7 +15,7 @@ export default function CalendarFilterBar({ calendars }: CalendarFilterBarProps)
     <div className="flex gap-2 px-4 py-2 overflow-x-auto border-b border-white/10 scrollbar-hide">
       {calendars.map((cal) => {
         const isVisible = calendarPreferences[cal.id]?.visible !== false
-        const color = calendarPreferences[cal.id]?.colorOverride ?? cal.backgroundColor
+        const color = cal.backgroundColor
 
         return (
           <button

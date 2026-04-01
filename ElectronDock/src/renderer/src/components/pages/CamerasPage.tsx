@@ -78,9 +78,8 @@ function CameraTile({ camera }: { camera: WyzeCamera }) {
 
 export default function CamerasPage() {
   const cameras = useSettingsStore((s) => s.cameras)
-  const setPage = () => {}  // placeholder — handled by sidebar
 
-  // Stop all streams when leaving the page (called via useEffect cleanup via parent)
+  // Stop all streams when leaving the page
   useEffect(() => {
     return () => {
       window.api.cameras?.stopAllStreams().catch(() => {})
@@ -103,16 +102,9 @@ export default function CamerasPage() {
     )
   }
 
-  // 1 camera: full width. 2: side by side. 3-4: 2x2 grid.
-  const gridClass = cameras.length === 1
-    ? 'grid-cols-1'
-    : cameras.length === 2
-    ? 'grid-cols-2'
-    : 'grid-cols-2'
-
   return (
-    <div className="h-full overflow-auto p-4" style={{ background: 'var(--bg-base)' }}>
-      <div className={`grid ${gridClass} gap-4`}>
+    <div className="h-full overflow-auto" style={{ background: 'var(--bg-base)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
         {cameras.map((camera) => (
           <CameraTile key={camera.id} camera={camera} />
         ))}

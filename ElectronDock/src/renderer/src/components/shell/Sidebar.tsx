@@ -1,6 +1,10 @@
+import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useUIStore } from '../../store/ui.slice'
 import { useSettingsStore } from '../../store/settings.slice'
-import type { AppPage, ThemeMode } from '../../../../preload/types'
+import type { AppPage, ThemeMode, RinnaiDevice } from '../../../../preload/types'
+
+export const SIDEBAR_IMAGE_KEY = 'sidebarImage'
 
 interface NavItem {
   id: AppPage
@@ -86,12 +90,20 @@ const SprinklerIcon = () => (
       d="M3 15a4 4 0 004 4h9a5 5 0 10-4.584-6.975A4.002 4.002 0 003 15z" />
   </svg>
 )
-const FlameIcon = () => (
-  <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-    <path strokeLinecap="round" strokeLinejoin="round"
-      d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-    <path strokeLinecap="round" strokeLinejoin="round"
-      d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+const WaterHeaterIcon = () => (
+  <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    {/* Body */}
+    <rect x="3" y="1" width="18" height="19" rx="3" strokeLinecap="round" strokeLinejoin="round" />
+    {/* Water drop */}
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5c0 0-3.5 3.5-3.5 6a3.5 3.5 0 007 0c0-2.5-3.5-6-3.5-6z" />
+    {/* Two indicator dots */}
+    <circle cx="9" cy="14" r="1" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="14" r="1" fill="currentColor" stroke="none" />
+    {/* Display panel */}
+    <rect x="5.5" y="16" width="13" height="3" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1="7" y1="17.5" x2="17" y2="17.5" strokeLinecap="round" />
+    {/* Feet */}
+    <path strokeLinecap="round" d="M8 20v3M16 20v3" />
   </svg>
 )
 
@@ -103,7 +115,7 @@ const navItems: NavItem[] = [
   { id: 'lists',       label: 'Lists',     icon: <ListsIcon /> },
   { id: 'cameras',     label: 'Cameras',   icon: <CameraIcon /> },
   { id: 'sprinklers',  label: 'Sprinklers', icon: <SprinklerIcon /> },
-  { id: 'waterheater', label: 'Water',     icon: <FlameIcon /> },
+  { id: 'waterheater', label: 'Water',     icon: <WaterHeaterIcon /> },
 ]
 
 // Theme mode cycle: auto → light → dark → auto
@@ -115,6 +127,20 @@ export default function Sidebar() {
   const setMode     = useUIStore((s) => s.setMode)
   const themeMode   = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const qc          = useQueryClient()
+  const rinnaiDevices = qc.getQueryData<RinnaiDevice[]>(['rinnai-devices']) ?? []
+  const recircActive  = rinnaiDevices.some((d) => d.recirculationEnabled)
+
+  // ── Sidebar image — display only; upload is managed in Settings → General ──
+  // Listens for a custom event so it updates live when changed in Settings.
+  const [sidebarImage, setSidebarImage] = useState<string | null>(
+    () => localStorage.getItem(SIDEBAR_IMAGE_KEY)
+  )
+  useEffect(() => {
+    const handler = () => setSidebarImage(localStorage.getItem(SIDEBAR_IMAGE_KEY))
+    window.addEventListener('sidebarImageChanged', handler)
+    return () => window.removeEventListener('sidebarImageChanged', handler)
+  }, [])
 
   const handleThemeToggle = () => {
     const idx = THEME_CYCLE.indexOf(themeMode)
@@ -131,42 +157,69 @@ export default function Sidebar() {
     : 'Auto'
 
   const btnBase = `
-    flex flex-col items-center justify-center gap-1.5 w-24 h-20 rounded-xl
-    transition-colors duration-150 min-h-[80px] text-xs font-medium
+    flex flex-col items-center justify-center gap-1.5 w-28 h-20 rounded-xl
+    transition-colors duration-150 min-h-[80px] text-xs font-medium relative z-10
   `
 
   return (
     <nav
-      className="flex flex-col items-center py-3 gap-1 flex-shrink-0"
+      className="flex flex-col items-center py-3 gap-1 flex-shrink-0 relative overflow-hidden"
       style={{
-        width: 112,
-        background: 'var(--bg-sidebar)',
+        width: 130,
+        background: sidebarImage ? 'transparent' : 'var(--bg-sidebar)',
         borderRight: '1px solid var(--border-sidebar)'
       }}
     >
-      {/* Logo */}
-      <div className="mb-3 flex flex-col items-center">
-        <div className="w-12 h-12 rounded-xl bg-blue-500 flex items-center justify-center text-white font-bold text-xl">
-          CD
-        </div>
-      </div>
+      {/* ── Background image (upload managed in Settings → General) ── */}
+      {sidebarImage && (
+        <>
+          <img
+            src={sidebarImage}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 w-full h-full object-cover"
+            style={{ zIndex: 0 }}
+          />
+          {/* Dark scrim so icons stay readable over any image */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'rgba(0,0,0,0.45)', zIndex: 1 }}
+          />
+        </>
+      )}
 
       {/* Main nav */}
-      {navItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => setPage(item.id)}
-          className={`${btnBase} ${
-            activePage === item.id
-              ? 'bg-blue-500 text-white'
-              : 'text-[var(--text-sidebar)] hover:bg-white/10 opacity-70 hover:opacity-100'
-          }`}
-          aria-label={item.label}
-        >
-          {item.icon}
-          <span>{item.label}</span>
-        </button>
-      ))}
+      {navItems.map((item) => {
+        const isWater = item.id === 'waterheater'
+        const showRecircBadge = isWater && recircActive
+        return (
+          <button
+            key={item.id}
+            onClick={() => setPage(item.id)}
+            className={`${btnBase} relative ${
+              activePage === item.id
+                ? 'bg-blue-500 text-white'
+                : 'text-[var(--text-sidebar)] hover:bg-white/10 opacity-70 hover:opacity-100'
+            }`}
+            aria-label={item.label}
+          >
+            <div className="relative">
+              {item.icon}
+              {showRecircBadge && (
+                <span
+                  className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-pulse"
+                  style={{
+                    background: 'radial-gradient(circle at 40% 40%, #fca5a5, #ef4444)',
+                    boxShadow: '0 0 6px rgba(239,68,68,0.8)',
+                  }}
+                />
+              )}
+            </div>
+            <span>{item.label}</span>
+          </button>
+        )
+      })}
 
       {/* Spacer */}
       <div className="flex-1" />

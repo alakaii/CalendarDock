@@ -1,5 +1,6 @@
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
+import { safeStorage } from 'electron'
 import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera } from '../../preload/types'
 
 type StoredSettings = AppSettings & {
@@ -11,10 +12,19 @@ type StoredSettings = AppSettings & {
     photoUrl?: string
     encryptedRefreshToken: string
   }>
+  // Dropbox tokens stored encrypted — never sent to renderer
+  dropboxEncryptedAccessToken:  string
+  dropboxAccessTokenExpiry:     number
+  dropboxEncryptedRefreshToken: string
+  dropboxAccountId:             string
 }
 
 const defaults: StoredSettings = {
   accounts: [],
+  dropboxEncryptedAccessToken:  '',
+  dropboxAccessTokenExpiry:     0,
+  dropboxEncryptedRefreshToken: '',
+  dropboxAccountId:             '',
   calendarPreferences: {},
   weather: {
     location: '',
@@ -37,16 +47,24 @@ const defaults: StoredSettings = {
     transitionDurationMs: 1500
   },
   standbyLayout: {
-    time:    { corner: 'top-left' as const, enabled: true },
-    weather: { corner: 'top-left' as const, enabled: true },
-    events:  { corner: 'top-left' as const, enabled: true },
-    priority: ['time', 'weather', 'events'] as const,
+    time:    { corner: 'top-left' as const,     enabled: true  },
+    weather: { corner: 'top-left' as const,     enabled: true  },
+    events:  { corner: 'top-left' as const,     enabled: true  },
+    water:   { corner: 'bottom-right' as const, enabled: true  },
+    priority: ['time', 'weather', 'events', 'water'] as const,
     weatherFields: {
       temperature: true,
       feelsLike:   false,
       condition:   true,
       humidity:    false,
       city:        true
+    },
+    waterFields: {
+      timeRemaining:       true,
+      domesticTemperature: true,
+      recircTemperature:   true,
+      outletTemperature:   false,
+      inletTemperature:    false,
     }
   },
   standbyExitGesture: 'double-tap' as const,
@@ -58,7 +76,26 @@ const defaults: StoredSettings = {
   cameras: [],
   rachioApiKey: '',
   rinnaiEmail: '',
-  rinnaiPassword: ''
+  rinnaiPassword: '',
+  mealsGoogleAccountId:  '',
+  mealsGoogleTaskListId: '',
+  dropboxAppKey:       '',
+  dropboxFolderPath:   '',
+  dropboxPhotoCount:   200,
+  dropboxEnabled:      false,
+  dropboxLastSync:     0,
+  dropboxAccountEmail: '',
+  cameraWakeEnabled:          false,
+  deepSleepStart:             '21:00',
+  deepSleepEnd:               '06:00',
+  cameraWakeThreshold:        0.15,
+  cameraWakePixelNoise:       20,
+  cameraWakeBackground:       null,
+  passiveStandbyMinutes:      5,
+  passiveBacklightOffMinutes: 15,
+  activeStandbyMinutes:       30,
+  motionSustainSeconds:       6,
+  activeHoldMinutes:          20,
 }
 
 const store = new Store<StoredSettings>({
@@ -251,5 +288,84 @@ export const settingsService = {
   setRinnaiCredentials(email: string, password: string): void {
     store.set('rinnaiEmail', email)
     store.set('rinnaiPassword', password)
-  }
+  },
+
+  // ---- Dropbox ----
+
+  setDropboxTokens(accessToken: string, refreshToken: string, accountId: string, expiry = 0): void {
+    const canEncrypt = safeStorage.isEncryptionAvailable()
+    store.set('dropboxEncryptedAccessToken',
+      canEncrypt ? safeStorage.encryptString(accessToken).toString('base64') : accessToken)
+    store.set('dropboxEncryptedRefreshToken',
+      canEncrypt ? safeStorage.encryptString(refreshToken).toString('base64') : refreshToken)
+    store.set('dropboxAccessTokenExpiry', expiry)
+    store.set('dropboxAccountId', accountId)
+  },
+
+  getDropboxTokens(): { accessToken: string; refreshToken: string; accountId: string; accessTokenExpiry: number } | null {
+    const encAT = store.get('dropboxEncryptedAccessToken')
+    const encRT = store.get('dropboxEncryptedRefreshToken')
+    if (!encAT || !encRT) return null
+    const canEncrypt = safeStorage.isEncryptionAvailable()
+    try {
+      const accessToken  = canEncrypt ? safeStorage.decryptString(Buffer.from(encAT, 'base64')) : encAT
+      const refreshToken = canEncrypt ? safeStorage.decryptString(Buffer.from(encRT, 'base64')) : encRT
+      return {
+        accessToken,
+        refreshToken,
+        accountId:        store.get('dropboxAccountId') as string,
+        accessTokenExpiry: store.get('dropboxAccessTokenExpiry') as number,
+      }
+    } catch {
+      return null
+    }
+  },
+
+  clearDropboxTokens(): void {
+    store.set('dropboxEncryptedAccessToken', '')
+    store.set('dropboxEncryptedRefreshToken', '')
+    store.set('dropboxAccessTokenExpiry', 0)
+    store.set('dropboxAccountId', '')
+  },
+
+  setDropboxAppKey(key: string): void         { store.set('dropboxAppKey', key) },
+  setDropboxAccountEmail(email: string): void { store.set('dropboxAccountEmail', email) },
+  setDropboxEnabled(enabled: boolean): void   { store.set('dropboxEnabled', enabled) },
+  setDropboxLastSync(ts: number): void        { store.set('dropboxLastSync', ts) },
+  setDropboxFolderPath(path: string): void    { store.set('dropboxFolderPath', path) },
+  setDropboxPhotoCount(count: number): void   { store.set('dropboxPhotoCount', count) },
+
+  setMealsGoogleTaskList(accountId: string, taskListId: string): void {
+    store.set('mealsGoogleAccountId',  accountId)
+    store.set('mealsGoogleTaskListId', taskListId)
+  },
+
+  setCameraWakeEnabled(enabled: boolean): void {
+    store.set('cameraWakeEnabled', enabled)
+  },
+
+  setDeepSleepSchedule(start: string, end: string): void {
+    store.set('deepSleepStart', start)
+    store.set('deepSleepEnd',   end)
+  },
+
+  setCameraWakeCalibration(background: number[], threshold: number): void {
+    store.set('cameraWakeBackground', background)
+    store.set('cameraWakeThreshold',  threshold)
+  },
+
+  setCameraWakeThreshold(threshold: number): void {
+    store.set('cameraWakeThreshold', threshold)
+  },
+
+  setPassiveDaySettings(standbyMinutes: number, backlightOffMinutes: number): void {
+    store.set('passiveStandbyMinutes',      standbyMinutes)
+    store.set('passiveBacklightOffMinutes', backlightOffMinutes)
+  },
+
+  setActiveDaySettings(standbyMinutes: number, sustainSeconds: number, holdMinutes: number): void {
+    store.set('activeStandbyMinutes',  standbyMinutes)
+    store.set('motionSustainSeconds',  sustainSeconds)
+    store.set('activeHoldMinutes',     holdMinutes)
+  },
 }

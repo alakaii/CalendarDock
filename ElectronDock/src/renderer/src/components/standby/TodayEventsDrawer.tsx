@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { format, isToday, parseISO } from 'date-fns'
 import { useQueryClient } from '@tanstack/react-query'
-import { useSettingsStore } from '../../store/settings.slice'
+import { useCalendars } from '../../hooks/useCalendars'
 import type { CalendarEvent } from '../../../../preload/types'
 import type { StandbyCorner } from '../../../../preload/types'
 
@@ -18,8 +18,8 @@ const CalIcon = () => (
 
 export default function TodayEventsDrawer({ corner }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const calendarPreferences = useSettingsStore((s) => s.calendarPreferences)
   const queryClient = useQueryClient()
+  const { data: calendars = [] } = useCalendars()
 
   const isBottom = corner.startsWith('bottom')
 
@@ -74,7 +74,7 @@ export default function TodayEventsDrawer({ corner }: Props) {
     <div className="w-72 max-h-[40vh] overflow-y-auto rounded-xl bg-black/50 backdrop-blur-md
                     border border-white/20 p-3 space-y-2">
       {todayEvents.map((ev) => {
-        const color = calendarPreferences[ev.calendarId]?.colorOverride ?? '#4285F4'
+        const color = calendars.find((c) => c.id === ev.calendarId)?.backgroundColor ?? '#4285F4'
         return (
           <div key={ev.id} className="flex items-start gap-2 py-1">
             <div
