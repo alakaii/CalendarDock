@@ -26,6 +26,7 @@ const defaults: StoredSettings = {
   dropboxEncryptedRefreshToken: '',
   dropboxAccountId:             '',
   calendarPreferences: {},
+  calendarOrder: [],
   weather: {
     location: '',
     units: 'imperial',
@@ -79,6 +80,9 @@ const defaults: StoredSettings = {
   rinnaiPassword: '',
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
+  mealsFontSize: 1,
+  fridgeGoogleAccountId:  '',
+  fridgeGoogleTaskListId: '',
   dropboxAppKey:       '',
   dropboxFolderPath:   '',
   dropboxPhotoCount:   200,
@@ -96,6 +100,9 @@ const defaults: StoredSettings = {
   activeStandbyMinutes:       30,
   motionSustainSeconds:       6,
   activeHoldMinutes:          20,
+  wyzeBridgeEmail:    '',
+  wyzeBridgePassword: '',
+  wyzeBridgeHost:     'localhost:8554',
 }
 
 const store = new Store<StoredSettings>({
@@ -126,6 +133,14 @@ export const settingsService = {
     const prefs = store.get('calendarPreferences') ?? {}
     prefs[calendarId] = { ...(prefs[calendarId] ?? {}), colorOverride: color }
     store.set('calendarPreferences', prefs)
+  },
+
+  setCalendarOrder(ids: string[]): void {
+    store.set('calendarOrder', ids)
+  },
+
+  setMealsFontSize(size: number): void {
+    store.set('mealsFontSize', size)
   },
 
   setWeatherLocation(location: string): void {
@@ -340,6 +355,11 @@ export const settingsService = {
     store.set('mealsGoogleTaskListId', taskListId)
   },
 
+  setFridgeGoogleTaskList(accountId: string, taskListId: string): void {
+    store.set('fridgeGoogleAccountId',  accountId)
+    store.set('fridgeGoogleTaskListId', taskListId)
+  },
+
   setCameraWakeEnabled(enabled: boolean): void {
     store.set('cameraWakeEnabled', enabled)
   },
@@ -367,5 +387,11 @@ export const settingsService = {
     store.set('activeStandbyMinutes',  standbyMinutes)
     store.set('motionSustainSeconds',  sustainSeconds)
     store.set('activeHoldMinutes',     holdMinutes)
+  },
+
+  setWyzeBridgeConfig(email: string, password: string, host: string): void {
+    store.set('wyzeBridgeEmail',    email)
+    store.set('wyzeBridgePassword', password)
+    store.set('wyzeBridgeHost',     host)
   },
 }

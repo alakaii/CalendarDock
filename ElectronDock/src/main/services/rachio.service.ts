@@ -1,4 +1,4 @@
-import type { RachioDevice, RachioZone } from '../../preload/types'
+import type { RachioDevice, RachioZone, RachioSchedule } from '../../preload/types'
 
 const BASE = 'https://api.rach.io/1/public'
 
@@ -45,5 +45,32 @@ export const rachioService = {
 
   async stopAll(apiKey: string, deviceId: string): Promise<void> {
     await rachioFetch(apiKey, '/device/stop_water', 'PUT', { id: deviceId })
+  },
+
+  async getSchedules(apiKey: string, deviceId: string): Promise<RachioSchedule[]> {
+    const rules = await rachioFetch(apiKey, `/device/${deviceId}/scheduleRules`)
+    return (rules ?? []).map((r: any): RachioSchedule => ({
+      id:              r.id,
+      name:            r.name ?? 'Unnamed Schedule',
+      enabled:         r.enabled ?? false,
+      startTimeMs:     r.startTime ?? 0,
+      totalDurationSec: r.totalDuration ?? 0,
+      nextRunDate:     r.nextRunDate ?? null,
+      lastRunDate:     r.lastRunDate ?? null,
+      type:            r.type ?? '',
+      summary:         r.summary ?? '',
+    }))
+  },
+
+  async enableSchedule(apiKey: string, scheduleId: string): Promise<void> {
+    await rachioFetch(apiKey, '/schedulerule/enable', 'PUT', { id: scheduleId })
+  },
+
+  async disableSchedule(apiKey: string, scheduleId: string): Promise<void> {
+    await rachioFetch(apiKey, '/schedulerule/disable', 'PUT', { id: scheduleId })
+  },
+
+  async skipSchedule(apiKey: string, scheduleId: string): Promise<void> {
+    await rachioFetch(apiKey, '/schedulerule/skip', 'PUT', { id: scheduleId })
   },
 }

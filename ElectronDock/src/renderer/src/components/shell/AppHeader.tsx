@@ -5,7 +5,7 @@ import { useWeather, useForecast } from '../../hooks/useWeather'
 import { useUIStore } from '../../store/ui.slice'
 import { calendarBridge } from '../../bridge/calendarBridge'
 import type { CalView } from '../../store/ui.slice'
-import CalendarPills from './CalendarPills'
+import { getSeasonalGradient } from '../../utils/seasonalGradient'
 
 // ── Weather emoji map ─────────────────────────────────────────────────────────
 const weatherEmoji: Record<string, string> = {
@@ -18,25 +18,6 @@ const weatherEmoji: Record<string, string> = {
   '11d': '⛈', '11n': '⛈',
   '13d': '❄️', '13n': '❄️',
   '50d': '🌫', '50n': '🌫',
-}
-
-// ── Seasonal gradient underlay (subtle, by current month) ─────────────────────
-function getSeasonalGradient(month: number): string {
-  // month is 0-indexed (0 = Jan, 11 = Dec)
-  if (month >= 2 && month <= 4) {
-    // Spring (Mar–May): soft greens & cherry-blossom pinks
-    return 'linear-gradient(120deg, rgba(134,239,172,0.18) 0%, rgba(249,168,212,0.14) 55%, rgba(167,243,208,0.10) 100%)'
-  }
-  if (month >= 5 && month <= 7) {
-    // Summer (Jun–Aug): warm golden amber
-    return 'linear-gradient(120deg, rgba(253,224,71,0.16) 0%, rgba(251,146,60,0.13) 55%, rgba(253,224,71,0.08) 100%)'
-  }
-  if (month >= 8 && month <= 10) {
-    // Autumn (Sep–Nov): burnt orange & harvest red
-    return 'linear-gradient(120deg, rgba(251,146,60,0.20) 0%, rgba(239,68,68,0.13) 55%, rgba(234,179,8,0.09) 100%)'
-  }
-  // Winter (Dec, Jan, Feb): cool ice-blue & soft violet
-  return 'linear-gradient(120deg, rgba(147,197,253,0.18) 0%, rgba(196,181,253,0.14) 55%, rgba(147,197,253,0.09) 100%)'
 }
 
 // ── Clock hook ────────────────────────────────────────────────────────────────
@@ -144,7 +125,7 @@ export default function AppHeader() {
         />
       )}
 
-      {/* ── Seasonal gradient underlay (sits above image as colour tint) ── */}
+      {/* ── Seasonal gradient underlay ── */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -157,13 +138,6 @@ export default function AppHeader() {
           <span className="text-xl font-bold px-1">{pageTitles[activePage] ?? ''}</span>
         </div>
       )}
-
-      {/* ── Centre: calendar filter pills — truly screen-centred via absolute ── */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-20">
-        <div className="pointer-events-auto flex items-center justify-center">
-          <CalendarPills />
-        </div>
-      </div>
 
       {/* Spacer so the right block is pushed to the edge on non-calendar pages */}
       <div className="flex-1" />

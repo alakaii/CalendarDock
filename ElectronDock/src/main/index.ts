@@ -11,6 +11,7 @@ import { authService } from './services/auth.service'
 import { photosService } from './services/photos.service'
 import { settingsService } from './services/settings.service'
 import { photoQueueService } from './services/photoQueue.service'
+import { wyzeBridgeService } from './services/wyze-bridge.service'
 import { is } from '@electron-toolkit/utils'
 
 // ── Kiosk / touchscreen flags (must be set before app.ready) ────────────────
@@ -66,6 +67,11 @@ if (!gotLock) {
 
     // Register all IPC handlers
     registerIpcHandlers(win)
+
+    // Auto-start Wyze bridge if credentials are configured
+    const wyzeEmail = settingsService.get('wyzeBridgeEmail') ?? ''
+    const wyzePass  = settingsService.get('wyzeBridgePassword') ?? ''
+    wyzeBridgeService.ensureRunning(wyzeEmail, wyzePass).catch(() => {})
 
     // Restore saved OAuth clients
     await authService.initialize()

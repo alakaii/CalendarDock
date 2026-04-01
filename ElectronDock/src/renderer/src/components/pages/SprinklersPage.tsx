@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSettingsStore } from '../../store/settings.slice'
-import type { RachioDevice } from '../../../../preload/types'
+import type { RachioDevice, RachioSchedule } from '../../../../preload/types'
 
 const ZONE_DURATIONS = [
   { label: '5 min',  sec: 300  },
@@ -94,6 +94,139 @@ function ZoneTile({
           </button>
         </>
       )}
+    </div>
+  )
+}
+
+// ── Schedule helpers ──────────────────────────────────────────────────────────
+
+function formatRunDate(ts: number | null): string {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  const now = new Date()
+  const diffDays = Math.round((d.getTime() - now.getTime()) / 86_400_000)
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (diffDays === 0) return `Today ${time}`
+  if (diffDays === 1) return `Tomorrow ${time}`
+  if (diffDays === -1) return `Yesterday ${time}`
+  if (diffDays > 1 && diffDays < 7) return `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ` ${time}`
+}
+
+function formatDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`
+  const m = Math.round(sec / 60)
+  return `${m} min`
+}
+
+function ScheduleRow({ schedule, deviceId }: { schedule: RachioSchedule; deviceId: string }) {
+  const qc = useQueryClient()
+
+  const toggleMutation = useMutation({
+    mutationFn: () =>
+      schedule.enabled
+        ? window.api.rachio.disableSchedule(schedule.id)
+        : window.api.rachio.enableSchedule(schedule.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rachio-schedules', deviceId] }),
+  })
+
+  const skipMutation = useMutation({
+    mutationFn: () => window.api.rachio.skipSchedule(schedule.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rachio-schedules', deviceId] }),
+  })
+
+  return (
+    <div
+      className="flex items-center gap-4 px-4 py-3 rounded-xl"
+      style={{
+        background: 'var(--bg-surface)',
+        border: `1px solid ${schedule.enabled ? 'var(--border)' : 'var(--border)'}`,
+        opacity: schedule.enabled ? 1 : 0.55,
+      }}
+    >
+      {/* Enabled dot */}
+      <div
+        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+        style={{ background: schedule.enabled ? '#22c55e' : 'var(--border)' }}
+      />
+
+      {/* Name + summary */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+          {schedule.name}
+        </p>
+        <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+          {schedule.summary || schedule.type}{schedule.totalDurationSec ? ` · ${formatDuration(schedule.totalDurationSec)}` : ''}
+        </p>
+      </div>
+
+      {/* Last run */}
+      <div className="text-right flex-shrink-0" style={{ minWidth: 90 }}>
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Last run</p>
+        <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+          {formatRunDate(schedule.lastRunDate)}
+        </p>
+      </div>
+
+      {/* Next run */}
+      <div className="text-right flex-shrink-0" style={{ minWidth: 100 }}>
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Next run</p>
+        <p className="text-xs font-medium" style={{ color: schedule.enabled && schedule.nextRunDate ? '#3b82f6' : 'var(--text-primary)' }}>
+          {schedule.enabled ? formatRunDate(schedule.nextRunDate) : '—'}
+        </p>
+      </div>
+
+      {/* Skip */}
+      {schedule.enabled && schedule.nextRunDate && (
+        <button
+          onClick={() => skipMutation.mutate()}
+          disabled={skipMutation.isPending}
+          className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-opacity disabled:opacity-40 flex-shrink-0 min-h-[36px]"
+          style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+        >
+          Skip
+        </button>
+      )}
+
+      {/* Enable / disable toggle */}
+      <button
+        onClick={() => toggleMutation.mutate()}
+        disabled={toggleMutation.isPending}
+        className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-opacity disabled:opacity-40 flex-shrink-0 min-h-[36px]"
+        style={{
+          background: schedule.enabled ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+          border: `1px solid ${schedule.enabled ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+          color: schedule.enabled ? '#ef4444' : '#22c55e',
+        }}
+      >
+        {schedule.enabled ? 'Disable' : 'Enable'}
+      </button>
+    </div>
+  )
+}
+
+function SchedulesList({ deviceId }: { deviceId: string }) {
+  const rachioApiKey = useSettingsStore((s) => s.rachioApiKey)
+  const { data: schedules = [], isLoading } = useQuery<RachioSchedule[]>({
+    queryKey: ['rachio-schedules', deviceId],
+    queryFn: () => window.api.rachio.getSchedules(deviceId),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    enabled: !!rachioApiKey,
+  })
+
+  if (isLoading) return (
+    <p className="text-xs py-2" style={{ color: 'var(--text-secondary)' }}>Loading schedules…</p>
+  )
+  if (schedules.length === 0) return (
+    <p className="text-xs py-2" style={{ color: 'var(--text-secondary)' }}>No schedules found.</p>
+  )
+
+  return (
+    <div className="space-y-2">
+      {schedules.map((s) => (
+        <ScheduleRow key={s.id} schedule={s} deviceId={deviceId} />
+      ))}
     </div>
   )
 }
@@ -231,6 +364,17 @@ export default function SprinklersPage() {
                 ))}
               </div>
             )}
+
+            {/* Schedules */}
+            <div className="mt-6">
+              <p
+                className="text-xs font-bold uppercase tracking-widest mb-3"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Schedules
+              </p>
+              <SchedulesList deviceId={device.id} />
+            </div>
           </div>
         )
       })}

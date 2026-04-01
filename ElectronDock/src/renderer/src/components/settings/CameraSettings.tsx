@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
-import type { WyzeCamera } from '../../../../preload/types'
+import type { WyzeCamera, BridgeStatus } from '../../../../preload/types'
 
 function genId() {
   return Math.random().toString(36).slice(2, 10)
@@ -10,11 +10,39 @@ function slugify(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 }
 
+const STATUS_COLOR: Record<BridgeStatus, string> = {
+  'running':            '#22c55e',
+  'stopped':            '#f59e0b',
+  'not-found':          '#6b7280',
+  'docker-unavailable': '#ef4444',
+}
+
+const STATUS_LABEL: Record<BridgeStatus, string> = {
+  'running':            'Running',
+  'stopped':            'Stopped',
+  'not-found':          'Not installed',
+  'docker-unavailable': 'Docker unavailable',
+}
+
 export default function CameraSettings() {
   const cameras    = useSettingsStore((s) => s.cameras)
   const setCameras = useSettingsStore((s) => s.setCameras)
 
-  const [bridgeHost, setBridgeHost]           = useState('localhost:8554')
+  // Persisted bridge config
+  const storeEmail    = useSettingsStore((s) => s.wyzeBridgeEmail)
+  const storePassword = useSettingsStore((s) => s.wyzeBridgePassword)
+  const storeHost     = useSettingsStore((s) => s.wyzeBridgeHost)
+  const setWyzeBridgeConfig = useSettingsStore((s) => s.setWyzeBridgeConfig)
+
+  // Local draft state for credentials form
+  const [draftEmail,    setDraftEmail]    = useState(storeEmail)
+  const [draftPassword, setDraftPassword] = useState(storePassword)
+  const [draftHost,     setDraftHost]     = useState(storeHost)
+  const [credsSaved,    setCredsSaved]    = useState(false)
+
+  const [bridgeStatus,  setBridgeStatus]  = useState<BridgeStatus | null>(null)
+  const [bridgeBusy,    setBridgeBusy]    = useState(false)
+
   const [draftName, setDraftName]             = useState('')
   const [draftRtsp, setDraftRtsp]             = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -22,19 +50,58 @@ export default function CameraSettings() {
   const [editName, setEditName]               = useState('')
   const [editRtsp, setEditRtsp]               = useState('')
 
-  // Auto-fill RTSP URL when name is typed, if URL hasn't been manually edited
+  const checkStatus = useCallback(async () => {
+    const status = await window.api.cameras?.bridgeStatus()
+    if (status) setBridgeStatus(status)
+  }, [])
+
+  useEffect(() => { checkStatus() }, [checkStatus])
+
+  const handleSaveCreds = () => {
+    setWyzeBridgeConfig(draftEmail, draftPassword, draftHost)
+    setCredsSaved(true)
+    setTimeout(() => setCredsSaved(false), 2000)
+  }
+
+  const handleStart = async () => {
+    setBridgeBusy(true)
+    try {
+      await window.api.cameras?.bridgeStart()
+      await checkStatus()
+    } catch (err: any) {
+      alert(err.message ?? 'Failed to start bridge')
+    } finally {
+      setBridgeBusy(false)
+    }
+  }
+
+  const handleStop = async () => {
+    setBridgeBusy(true)
+    try {
+      await window.api.cameras?.bridgeStop()
+      await checkStatus()
+    } finally {
+      setBridgeBusy(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    if (!confirm('Remove the wyze-bridge container? You can recreate it by clicking Start.')) return
+    setBridgeBusy(true)
+    try {
+      await window.api.cameras?.bridgeRemove()
+      await checkStatus()
+    } finally {
+      setBridgeBusy(false)
+    }
+  }
+
+  // Auto-fill RTSP URL when name is typed
   const handleNameChange = (name: string) => {
     setDraftName(name)
     const slug = slugify(name)
-    if (slug) setDraftRtsp(`rtsp://${bridgeHost}/${slug}`)
+    if (slug) setDraftRtsp(`rtsp://${draftHost}/${slug}`)
     else setDraftRtsp('')
-  }
-
-  const handleBridgeHostChange = (host: string) => {
-    setBridgeHost(host)
-    // Re-generate URL if name is already set
-    const slug = slugify(draftName)
-    if (slug) setDraftRtsp(`rtsp://${host}/${slug}`)
   }
 
   const handleAdd = () => {
@@ -81,57 +148,139 @@ export default function CameraSettings() {
   }
   const cardStyle = { background: 'var(--card-bg)', border: '1px solid var(--card-border)' }
 
+  const credentialsChanged =
+    draftEmail !== storeEmail || draftPassword !== storePassword || draftHost !== storeHost
+
   return (
     <div className="space-y-6 max-w-xl">
       <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Cameras</h2>
 
-      {/* ── Docker Wyze Bridge setup note ─────────────────────────────────── */}
-      <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
-        <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Docker Wyze Bridge
-        </p>
+      {/* ── Wyze Bridge control panel ── */}
+      <div className="rounded-xl p-4 space-y-4" style={cardStyle}>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Wyze Bridge
+          </p>
+
+          {/* Status indicator */}
+          <div className="flex items-center gap-2">
+            {bridgeStatus ? (
+              <>
+                <div
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ background: STATUS_COLOR[bridgeStatus] }}
+                />
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  {STATUS_LABEL[bridgeStatus]}
+                </span>
+              </>
+            ) : (
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Checking…</span>
+            )}
+            <button
+              onClick={checkStatus}
+              className="p-1.5 rounded-lg opacity-50 hover:opacity-100 transition-opacity"
+              style={{ color: 'var(--text-secondary)' }}
+              aria-label="Refresh status"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          Wyze Cam v4 doesn't support native RTSP. Use{' '}
-          <span className="font-mono text-xs px-1 py-0.5 rounded" style={{ background: 'var(--bg-base)' }}>
-            docker-wyze-bridge
-          </span>{' '}
-          to proxy streams locally. Run once on this machine:
+          Wyze Cam v4 doesn't support native RTSP. Enter your Wyze credentials and click{' '}
+          <strong>Start</strong> — the app will run a Docker container that bridges your cameras
+          automatically, including on every app launch.
         </p>
-        <pre
-          className="text-xs p-3 rounded-lg overflow-x-auto leading-relaxed"
-          style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
-        >{`docker run -d --restart unless-stopped \\
-  -p 8554:8554 -p 8888:8888 \\
-  -e WYZE_EMAIL=you@email.com \\
-  -e WYZE_PASSWORD=yourpass \\
-  --name wyze-bridge \\
-  mrlt8/wyze-bridge:latest`}</pre>
-        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Camera names in the bridge match your Wyze app names (lowercased, spaces → dashes).
-          FFmpeg must also be installed:{' '}
-          <code className="px-1 rounded" style={{ background: 'var(--bg-base)' }}>
-            sudo apt install ffmpeg
-          </code>
-        </p>
+
+        {/* Credentials */}
+        <div className="space-y-2">
+          <input
+            type="email"
+            value={draftEmail}
+            onChange={(e) => setDraftEmail(e.target.value)}
+            placeholder="Wyze account email"
+            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none min-h-[44px]"
+            style={inputStyle}
+          />
+          <input
+            type="password"
+            value={draftPassword}
+            onChange={(e) => setDraftPassword(e.target.value)}
+            placeholder="Wyze password"
+            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none min-h-[44px]"
+            style={inputStyle}
+          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={draftHost}
+              onChange={(e) => setDraftHost(e.target.value)}
+              placeholder="Bridge host (e.g. localhost:8554)"
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none font-mono min-h-[44px]"
+              style={inputStyle}
+            />
+            <button
+              onClick={handleSaveCreds}
+              disabled={!credentialsChanged && !credsSaved}
+              className="px-4 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-30 min-h-[44px]"
+              style={{ background: credsSaved ? '#22c55e' : '#3b82f6', color: '#fff' }}
+            >
+              {credsSaved ? '✓ Saved' : 'Save'}
+            </button>
+          </div>
+          {credentialsChanged && (
+            <p className="text-xs" style={{ color: '#f59e0b' }}>
+              Unsaved changes — save then restart the bridge to apply.
+            </p>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={handleStart}
+            disabled={bridgeBusy || bridgeStatus === 'running' || bridgeStatus === 'docker-unavailable' || !storeEmail || !storePassword}
+            className="px-4 py-2 rounded-xl font-semibold text-sm transition-opacity disabled:opacity-30 min-h-[44px]"
+            style={{ background: '#22c55e', color: '#fff' }}
+          >
+            {bridgeBusy ? 'Working…' : 'Start bridge'}
+          </button>
+          <button
+            onClick={handleStop}
+            disabled={bridgeBusy || bridgeStatus !== 'running'}
+            className="px-4 py-2 rounded-xl font-semibold text-sm transition-opacity disabled:opacity-30 min-h-[44px]"
+            style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}
+          >
+            Stop
+          </button>
+          {(bridgeStatus === 'stopped' || bridgeStatus === 'running') && (
+            <button
+              onClick={handleRemove}
+              disabled={bridgeBusy}
+              className="px-4 py-2 rounded-xl font-semibold text-sm transition-opacity disabled:opacity-30 min-h-[44px]"
+              style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: '#ef4444' }}
+            >
+              Remove container
+            </button>
+          )}
+        </div>
+
+        {bridgeStatus === 'docker-unavailable' && (
+          <p className="text-xs" style={{ color: '#ef4444' }}>
+            Docker not found. Install Docker Desktop (Windows/Mac) or run{' '}
+            <code className="px-1 rounded" style={{ background: 'var(--bg-base)' }}>
+              curl -fsSL https://get.docker.com | sh
+            </code>{' '}
+            on Linux, then relaunch the app.
+          </p>
+        )}
       </div>
 
-      {/* ── Bridge host ───────────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <p style={labelStyle}>Bridge host</p>
-        <input
-          type="text"
-          value={bridgeHost}
-          onChange={(e) => handleBridgeHostChange(e.target.value)}
-          placeholder="localhost:8554"
-          className="w-full px-4 py-2.5 rounded-xl text-sm outline-none font-mono min-h-[44px]"
-          style={inputStyle}
-        />
-        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Used to auto-fill RTSP URLs when adding cameras. Change if the bridge runs on another machine.
-        </p>
-      </div>
-
-      {/* ── Camera list ───────────────────────────────────────────────────── */}
+      {/* ── Camera list ── */}
       <div className="space-y-3">
         <p style={labelStyle}>Camera feeds</p>
 
@@ -155,7 +304,7 @@ export default function CameraSettings() {
                   <input
                     value={editRtsp}
                     onChange={(e) => setEditRtsp(e.target.value)}
-                    placeholder={`rtsp://${bridgeHost}/cam-name`}
+                    placeholder={`rtsp://${draftHost}/cam-name`}
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono min-h-[40px]"
                     style={inputStyle}
                     onKeyDown={(e) => e.key === 'Enter' && saveEdit(c.id)}
@@ -247,7 +396,7 @@ export default function CameraSettings() {
               value={draftRtsp}
               onChange={(e) => setDraftRtsp(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-              placeholder={`rtsp://${bridgeHost}/cam-name`}
+              placeholder={`rtsp://${draftHost}/cam-name`}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none font-mono min-h-[44px]"
               style={inputStyle}
             />
@@ -262,7 +411,7 @@ export default function CameraSettings() {
           </div>
           {draftName && (
             <p className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-              → {draftRtsp || `rtsp://${bridgeHost}/${slugify(draftName)}`}
+              → {draftRtsp || `rtsp://${draftHost}/${slugify(draftName)}`}
             </p>
           )}
         </div>

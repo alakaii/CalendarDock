@@ -6,6 +6,8 @@ interface SettingsState extends AppSettings {
   setCalendarVisible: (calendarId: string, visible: boolean) => void
   setAllCalendarsVisible: (calendarIds: string[], visible: boolean) => void
   setCalendarColor: (calendarId: string, color: string) => void
+  setCalendarOrder: (ids: string[]) => void
+  setMealsFontSize: (size: number) => void
   setFamilyName: (name: string) => void
   setThemeMode: (mode: ThemeMode) => void
   setMealCell: (key: string, value: string) => void
@@ -28,18 +30,21 @@ interface SettingsState extends AppSettings {
   setCameras: (cameras: WyzeCamera[]) => void
   setRachioApiKey: (key: string) => void
   setRinnaiCredentials: (email: string, password: string) => void
-  setMealsGoogleTaskList: (accountId: string, taskListId: string) => void
+  setMealsGoogleTaskList:  (accountId: string, taskListId: string) => void
+  setFridgeGoogleTaskList: (accountId: string, taskListId: string) => void
   setCameraWakeEnabled:    (enabled: boolean) => void
   setDeepSleepSchedule:   (start: string, end: string) => void
   setCameraWakeCalibration:(background: number[], threshold: number) => void
   setCameraWakeThreshold:  (threshold: number) => void
   setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => void
   setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => void
+  setWyzeBridgeConfig: (email: string, password: string, host: string) => void
 }
 
 const defaults: AppSettings = {
   accounts: [],
   calendarPreferences: {},
+  calendarOrder: [],
   weather: { location: '', units: 'imperial', apiKey: '' },
   photoFolderPath: '',
   standbyTimeoutMinutes: 10,
@@ -87,6 +92,9 @@ const defaults: AppSettings = {
   rinnaiPassword: '',
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
+  mealsFontSize: 1,
+  fridgeGoogleAccountId:  '',
+  fridgeGoogleTaskListId: '',
   dropboxAppKey:       '',
   dropboxFolderPath:   '',
   dropboxPhotoCount:   200,
@@ -104,6 +112,9 @@ const defaults: AppSettings = {
   activeStandbyMinutes:       30,
   motionSustainSeconds:       6,
   activeHoldMinutes:          20,
+  wyzeBridgeEmail:    '',
+  wyzeBridgePassword: '',
+  wyzeBridgeHost:     'localhost:8554',
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -143,6 +154,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         [calendarId]: { ...(s.calendarPreferences[calendarId] ?? {}), colorOverride: color }
       }
     }))
+  },
+
+  setCalendarOrder: (ids) => {
+    window.api.settings.setCalendarOrder(ids)
+    set({ calendarOrder: ids })
+  },
+
+  setMealsFontSize: (size) => {
+    window.api.settings.setMealsFontSize(size)
+    set({ mealsFontSize: size })
   },
 
   setFamilyName: (name) => {
@@ -263,6 +284,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ mealsGoogleAccountId: accountId, mealsGoogleTaskListId: taskListId })
   },
 
+  setFridgeGoogleTaskList: (accountId, taskListId) => {
+    window.api.settings.setFridgeGoogleTaskList(accountId, taskListId)
+    set({ fridgeGoogleAccountId: accountId, fridgeGoogleTaskListId: taskListId })
+  },
+
   setCameraWakeEnabled: (enabled) => {
     window.api.settings.setCameraWakeEnabled(enabled)
     set({ cameraWakeEnabled: enabled })
@@ -291,5 +317,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setActiveDaySettings: (standbyMinutes, sustainSeconds, holdMinutes) => {
     window.api.settings.setActiveDaySettings(standbyMinutes, sustainSeconds, holdMinutes)
     set({ activeStandbyMinutes: standbyMinutes, motionSustainSeconds: sustainSeconds, activeHoldMinutes: holdMinutes })
+  },
+
+  setWyzeBridgeConfig: (email, password, host) => {
+    window.api.settings.setWyzeBridgeConfig(email, password, host)
+    set({ wyzeBridgeEmail: email, wyzeBridgePassword: password, wyzeBridgeHost: host })
   },
 }))

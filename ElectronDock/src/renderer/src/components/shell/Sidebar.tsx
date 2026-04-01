@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useUIStore } from '../../store/ui.slice'
 import { useSettingsStore } from '../../store/settings.slice'
 import type { AppPage, ThemeMode, RinnaiDevice } from '../../../../preload/types'
+import { getSeasonalGradient } from '../../utils/seasonalGradient'
 
 export const SIDEBAR_IMAGE_KEY = 'sidebarImage'
 
@@ -156,6 +157,8 @@ export default function Sidebar() {
     : themeMode === 'light' ? 'Light'
     : 'Auto'
 
+  const seasonalGradient = getSeasonalGradient(new Date().getMonth())
+
   const btnBase = `
     flex flex-col items-center justify-center gap-1.5 w-28 h-20 rounded-xl
     transition-colors duration-150 min-h-[80px] text-xs font-medium relative z-10
@@ -189,6 +192,15 @@ export default function Sidebar() {
         </>
       )}
 
+      {/* ── Seasonal gradient overlay (matches header top-left colour) ── */}
+      {!sidebarImage && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{ background: seasonalGradient, zIndex: 1 }}
+        />
+      )}
+
       {/* Main nav */}
       {navItems.map((item) => {
         const isWater = item.id === 'waterheater'
@@ -200,7 +212,7 @@ export default function Sidebar() {
             className={`${btnBase} relative ${
               activePage === item.id
                 ? 'bg-blue-500 text-white'
-                : 'text-[var(--text-sidebar)] hover:bg-white/10 opacity-70 hover:opacity-100'
+                : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
             }`}
             aria-label={item.label}
           >
@@ -227,7 +239,7 @@ export default function Sidebar() {
       {/* Theme toggle */}
       <button
         onClick={handleThemeToggle}
-        className={`${btnBase} text-[var(--text-sidebar)] hover:bg-white/10 opacity-70 hover:opacity-100`}
+        className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100`}
         aria-label={`Theme: ${themeLabel}`}
         title={`Theme: ${themeLabel} — click to cycle`}
       >
@@ -238,7 +250,7 @@ export default function Sidebar() {
       {/* Sleep (standby) */}
       <button
         onClick={() => setMode('standby')}
-        className={`${btnBase} text-[var(--text-sidebar)] hover:bg-white/10 opacity-60 hover:opacity-100`}
+        className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-60 hover:opacity-100`}
         aria-label="Sleep / Standby"
       >
         <ZzzIcon />
@@ -251,7 +263,7 @@ export default function Sidebar() {
         className={`${btnBase} ${
           activePage === 'settings'
             ? 'bg-blue-500 text-white'
-            : 'text-[var(--text-sidebar)] hover:bg-white/10 opacity-70 hover:opacity-100'
+            : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
         }`}
         aria-label="Settings"
       >

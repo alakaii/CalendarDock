@@ -21,11 +21,8 @@ const DAYS: { short: string; long: string; dow: number }[] = [
 const SLOTS = ['breakfast', 'lunch', 'dinner'] as const
 type Slot = typeof SLOTS[number]
 
-const SLOT_LABELS: Record<Slot, string> = {
-  breakfast: '🌅 Breakfast',
-  lunch:     '☀️ Lunch',
-  dinner:    '🌙 Dinner',
-}
+const SLOT_ICONS: Record<Slot, string>  = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
+const SLOT_NAMES: Record<Slot, string>  = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
 
 type DayStatus = 'past' | 'today' | 'future'
 
@@ -95,7 +92,7 @@ function MealCell({
           if (e.key === 'Escape') { setEditing(false); setDraft(value) }
         }}
         rows={4}
-        className="w-full resize-none text-sm rounded-lg px-2 py-2 outline-none leading-snug"
+        className="w-full resize-none text-base rounded-lg px-2 py-2 outline-none leading-snug text-center"
         style={{
           background: 'var(--bg-base)',
           color: 'var(--text-primary)',
@@ -109,13 +106,14 @@ function MealCell({
   return (
     <div
       onClick={startEdit}
-      className="w-full text-sm rounded-lg px-2 py-2 cursor-pointer leading-snug transition-colors"
+      className="w-full text-base rounded-lg px-2 py-2 cursor-pointer leading-snug transition-colors text-center"
       style={{
         minHeight: 96,
         background: CELL_BG[dayStatus],
         border: '1px solid transparent',
         color: value ? 'var(--text-primary)' : 'var(--text-secondary)',
         opacity: value ? textOpacity : textOpacity * 0.6,
+        fontWeight: dayStatus === 'today' ? 700 : 400,
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
       }}
@@ -124,6 +122,205 @@ function MealCell({
       onKeyDown={(e) => e.key === 'Enter' && startEdit()}
     >
       {value || placeholder}
+    </div>
+  )
+}
+
+// ── Fridge panel ─────────────────────────────────────────────────────────────
+
+function FridgeCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="—"
+      className="flex-1 min-w-0 text-base px-3 bg-transparent outline-none"
+      style={{
+        color: 'var(--text-primary)',
+        height: 40,
+        caretColor: '#3b82f6',
+      }}
+    />
+  )
+}
+
+function FridgePanel({ title, storagePrefix, mealPlan, setMealCell }: {
+  title: string
+  storagePrefix: string
+  mealPlan: Record<string, string>
+  setMealCell: (key: string, value: string) => void
+}) {
+  const accountId  = useSettingsStore((s) => s.fridgeGoogleAccountId)
+  const taskListId = useSettingsStore((s) => s.fridgeGoogleTaskListId)
+  const isLinked   = !!(accountId && taskListId)
+
+  const [draft, setDraft] = useState('')
+
+  // Google Tasks — enabled only when fully configured
+  const filter = isLinked ? { accountId, taskListId, showCompleted: true } : null
+  const { data: tasks = [], isLoading } = useGoogleTasks(filter)
+  const createTask  = useCreateTask()
+  const setComplete = useSetTaskComplete()
+  const removeTask  = useDeleteTask()
+
+  const active = tasks.filter((t) => t.status !== 'completed')
+  const done   = tasks.filter((t) => t.status === 'completed')
+
+  const handleAdd = () => {
+    const text = draft.trim()
+    if (!text) return
+    createTask.mutate({ accountId, taskListId, title: text })
+    setDraft('')
+  }
+
+  // Local mode: dynamic row count
+  let maxFilledRow = -1
+  for (let r = 0; r < 100; r++) {
+    if (mealPlan[`${storagePrefix}-r${r}-c0`] || mealPlan[`${storagePrefix}-r${r}-c1`]) {
+      maxFilledRow = r
+    }
+  }
+  const rowCount = Math.max(2, maxFilledRow + 2)
+
+  return (
+    <div className="flex-1 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+
+      {/* ── Header ── */}
+      <h3
+        className="text-xs font-bold uppercase tracking-widest py-2 text-center"
+        style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}
+      >
+        {title}
+      </h3>
+
+      {/* ── Local mode: free-text rows ── */}
+      {!isLinked && Array.from({ length: rowCount }, (_, row) => (
+        <div
+          key={row}
+          className="flex items-center"
+          style={{ borderTop: row > 0 ? '1px solid var(--border)' : undefined }}
+        >
+          <FridgeCell
+            value={mealPlan[`${storagePrefix}-r${row}-c0`] ?? ''}
+            onChange={(v) => setMealCell(`${storagePrefix}-r${row}-c0`, v)}
+          />
+          <div className="flex-shrink-0 w-px self-stretch" style={{ background: 'var(--border)' }} />
+          <FridgeCell
+            value={mealPlan[`${storagePrefix}-r${row}-c1`] ?? ''}
+            onChange={(v) => setMealCell(`${storagePrefix}-r${row}-c1`, v)}
+          />
+        </div>
+      ))}
+
+      {/* ── Google Tasks mode ── */}
+      {isLinked && (
+        <>
+          {isLoading && (
+            <div className="px-3 py-4 text-sm text-center" style={{ color: 'var(--text-secondary)' }}>
+              Loading…
+            </div>
+          )}
+          {!isLoading && active.length === 0 && done.length === 0 && (
+            <div className="px-3 py-4 text-sm text-center" style={{ color: 'var(--text-secondary)' }}>
+              Nothing here yet
+            </div>
+          )}
+
+          {/* Active tasks */}
+          {active.map((t, i) => (
+            <div
+              key={t.id}
+              className="flex items-center gap-2 px-3"
+              style={{ borderTop: i === 0 ? undefined : '1px solid var(--border)', minHeight: 40 }}
+            >
+              <button
+                onClick={() => setComplete.mutate({ accountId: t.accountId, taskListId: t.taskListId, taskId: t.id, complete: true })}
+                className="w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all"
+                style={{ borderColor: 'var(--text-secondary)' }}
+                aria-label="Mark done"
+              />
+              <span className="flex-1 text-base" style={{ color: 'var(--text-primary)' }}>{t.title}</span>
+              <button
+                onClick={() => removeTask.mutate({ accountId: t.accountId, taskListId: t.taskListId, taskId: t.id })}
+                className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity"
+                style={{ color: 'var(--text-secondary)' }}
+                aria-label="Delete"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+
+          {/* Completed tasks */}
+          {done.length > 0 && (
+            <>
+              <p
+                className="px-3 pt-2 pb-0.5 text-xs font-semibold"
+                style={{ color: 'var(--text-secondary)', borderTop: '1px solid var(--border)' }}
+              >
+                DONE ({done.length})
+              </p>
+              {done.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex items-center gap-2 px-3 opacity-40"
+                  style={{ minHeight: 36 }}
+                >
+                  <button
+                    onClick={() => setComplete.mutate({ accountId: t.accountId, taskListId: t.taskListId, taskId: t.id, complete: false })}
+                    className="w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                    style={{ background: '#22c55e', borderColor: '#22c55e' }}
+                    aria-label="Unmark done"
+                  >
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <span className="flex-1 text-sm line-through" style={{ color: 'var(--text-secondary)' }}>{t.title}</span>
+                  <button
+                    onClick={() => removeTask.mutate({ accountId: t.accountId, taskListId: t.taskListId, taskId: t.id })}
+                    className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity"
+                    style={{ color: 'var(--text-secondary)' }}
+                    aria-label="Delete"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Add new item */}
+          <div
+            className="flex items-center gap-2 px-3"
+            style={{ borderTop: '1px solid var(--border)', minHeight: 40 }}
+          >
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              placeholder="Add item…"
+              className="flex-1 bg-transparent text-base outline-none placeholder:opacity-40"
+              style={{ color: 'var(--text-primary)', caretColor: '#3b82f6' }}
+            />
+            <button
+              onClick={handleAdd}
+              disabled={!draft.trim() || createTask.isPending}
+              className="text-lg leading-none px-1 transition-opacity disabled:opacity-20"
+              style={{ color: '#3b82f6', opacity: draft.trim() ? 0.8 : 0.4 }}
+              aria-label="Add item"
+            >
+              +
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -149,11 +346,13 @@ const HEADER_OPACITY: Record<DayStatus, number> = {
 }
 
 function WeekGrid() {
-  const mealPlan    = useSettingsStore((s) => s.mealPlan)
-  const setMealCell = useSettingsStore((s) => s.setMealCell)
+  const mealPlan        = useSettingsStore((s) => s.mealPlan)
+  const setMealCell     = useSettingsStore((s) => s.setMealCell)
+  const mealsFontSize   = useSettingsStore((s) => s.mealsFontSize)
+  const setMealsFontSize = useSettingsStore((s) => s.setMealsFontSize)
 
   return (
-    <div className="h-full overflow-auto" style={{ background: 'var(--bg-base)' }}>
+    <div className="h-full overflow-auto" style={{ background: 'var(--bg-base)', fontSize: `${mealsFontSize}rem` }}>
       <div className="p-4 pt-8" style={{ minWidth: 700 }}>
         <table className="w-full border-collapse">
           <thead>
@@ -190,10 +389,13 @@ function WeekGrid() {
             {SLOTS.map((slot, si) => (
               <tr key={slot}>
                 <td
-                  className="pr-3 py-2 text-xs font-semibold align-top pt-3"
+                  className="pr-3 py-4 align-middle"
                   style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
                 >
-                  {SLOT_LABELS[slot]}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-xl leading-none">{SLOT_ICONS[slot]}</span>
+                    <span className="text-sm font-semibold uppercase tracking-wide">{SLOT_NAMES[slot]}</span>
+                  </div>
                 </td>
                 {DAYS.map((d) => {
                   const key    = cellKey(d.dow, slot)
@@ -224,9 +426,40 @@ function WeekGrid() {
           </tbody>
         </table>
 
-        <p className="mt-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Tap any cell to edit. Changes save automatically.
-        </p>
+        {/* Font size slider */}
+        <div className="flex items-center gap-3 mt-4">
+          <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>A</span>
+          <input
+            type="range"
+            min={0.75}
+            max={1.75}
+            step={0.05}
+            value={mealsFontSize}
+            onChange={(e) => setMealsFontSize(parseFloat(e.target.value))}
+            className="w-32"
+            style={{ accentColor: '#3b82f6' }}
+          />
+          <span className="text-base flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>A</span>
+          <p className="text-xs ml-2" style={{ color: 'var(--text-secondary)' }}>
+            Tap any cell to edit. Changes save automatically.
+          </p>
+        </div>
+
+        {/* Fridge panels */}
+        <div className="flex gap-5 mt-6 mx-12">
+          <FridgePanel
+            title="House Fridge"
+            storagePrefix="fridge-house"
+            mealPlan={mealPlan}
+            setMealCell={setMealCell}
+          />
+          <FridgePanel
+            title="Garage Fridge"
+            storagePrefix="fridge-garage"
+            mealPlan={mealPlan}
+            setMealCell={setMealCell}
+          />
+        </div>
       </div>
     </div>
   )

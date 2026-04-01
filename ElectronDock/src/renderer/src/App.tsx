@@ -6,6 +6,7 @@ import { useTheme } from './hooks/useTheme'
 import AppShell from './components/shell/AppShell'
 import StandbyOverlay from './components/standby/StandbyOverlay'
 import CameraWatcher from './components/shell/CameraWatcher'
+import VirtualKeyboard from './components/shell/VirtualKeyboard'
 
 export default function App() {
   const mode                  = useUIStore((s) => s.mode)
@@ -36,6 +37,7 @@ export default function App() {
     <>
       <CameraWatcher />
       {mode === 'standby' ? <StandbyOverlay /> : <AppShell />}
+      <VirtualKeyboard />
     </>
   )
 }

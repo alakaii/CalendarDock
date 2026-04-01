@@ -9,13 +9,14 @@
 :root {
   --bg-base:          #f1f5f9;
   --bg-surface:       #ffffff;
-  --bg-sidebar:       #1e293b;
-  --bg-header:        #ffffff;
+  --bg-sidebar:       #f1f5f9;
+  --bg-header:        #f1f5f9;
   --text-primary:     #0f172a;
   --text-secondary:   #64748b;
-  --text-sidebar:     #e2e8f0;
+  --text-sidebar:     #334155;
   --border:           rgba(0,0,0,0.08);
-  --border-sidebar:   rgba(255,255,255,0.08);
+  --border-sidebar:   rgba(0,0,0,0.08);
+  --sidebar-hover:    rgba(0,0,0,0.07);
   --fc-border:        rgba(0,0,0,0.1);
   --fc-today-bg:      rgba(59,130,246,0.08);
   --fc-text:          #0f172a;
@@ -31,12 +32,13 @@
   --bg-base:          #0f172a;
   --bg-surface:       #1e293b;
   --bg-sidebar:       #0f172a;
-  --bg-header:        #1e293b;
+  --bg-header:        #0f172a;
   --text-primary:     #f1f5f9;
   --text-secondary:   #94a3b8;
   --text-sidebar:     #e2e8f0;
   --border:           rgba(255,255,255,0.08);
   --border-sidebar:   rgba(255,255,255,0.08);
+  --sidebar-hover:    rgba(255,255,255,0.10);
   --fc-border:        rgba(255,255,255,0.1);
   --fc-today-bg:      rgba(59,130,246,0.12);
   --fc-text:          #f1f5f9;
@@ -170,4 +172,57 @@ html, body {
 @keyframes kenburns {
   from { transform: scale(1)    translate(0,    0); }
   to   { transform: scale(1.07) translate(-1%, -1%); }
+}
+
+/* ============================================================
+   Virtual keyboard (react-simple-keyboard) — theme overrides
+   ============================================================ */
+.vkb-root {
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.18);
+}
+
+.hg-theme-default.vkb-theme {
+  background: var(--bg-surface) !important;
+  border-radius: 0 !important;
+  border: none !important;
+  padding: 10px 12px 14px !important;
+  font-family: inherit !important;
+}
+
+.hg-theme-default.vkb-theme .hg-button {
+  background: var(--bg-base) !important;
+  color: var(--text-primary) !important;
+  border-bottom: 2px solid var(--border) !important;
+  border-radius: 8px !important;
+  height: 52px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  transition: background 0.08s, color 0.08s !important;
+}
+
+.hg-theme-default.vkb-theme .hg-button:active {
+  background: rgba(59,130,246,0.15) !important;
+  color: #3b82f6 !important;
+}
+
+/* Wider keys */
+.hg-theme-default.vkb-theme .hg-button[data-skbtn="{bksp}"],
+.hg-theme-default.vkb-theme .hg-button[data-skbtn="{enter}"] {
+  background: var(--bg-base) !important;
+  color: var(--text-secondary) !important;
+}
+
+.hg-theme-default.vkb-theme .hg-button[data-skbtn="{space}"] {
+  flex-grow: 6 !important;
+}
+
+.hg-theme-default.vkb-theme .hg-row {
+  margin-bottom: 5px !important;
+  gap: 5px !important;
+}
+
+.hg-theme-default.vkb-theme .hg-row .hg-button + .hg-button {
+  margin-left: 0 !important;
 }

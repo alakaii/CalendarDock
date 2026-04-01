@@ -127,6 +127,8 @@ export interface ChoresList {
   googleAccountId?: string
 }
 
+export type BridgeStatus = 'running' | 'stopped' | 'not-found' | 'docker-unavailable'
+
 // ---- Wyze Cameras ----
 
 export interface WyzeCamera {
@@ -142,6 +144,18 @@ export interface RachioZone {
   zoneNumber: number
   name: string
   enabled: boolean
+}
+
+export interface RachioSchedule {
+  id: string
+  name: string
+  enabled: boolean
+  startTimeMs: number      // ms since midnight (local time)
+  totalDurationSec: number
+  nextRunDate: number | null // Unix ms timestamp
+  lastRunDate: number | null // Unix ms timestamp
+  type: string              // e.g. 'FIXED_SCHEDULE', 'FLEX_DAILY'
+  summary: string           // e.g. 'Mon, Wed, Fri'
 }
 
 export interface RachioDevice {
@@ -214,6 +228,7 @@ export type MealPlan = Record<string, string>
 export interface AppSettings {
   accounts: GoogleAccount[]
   calendarPreferences: Record<string, CalendarPreference>
+  calendarOrder: string[]
   weather: WeatherConfig
   photoFolderPath: string
   standbyTimeoutMinutes: number
@@ -237,6 +252,10 @@ export interface AppSettings {
   // Meals Google Tasks link (optional)
   mealsGoogleAccountId:  string
   mealsGoogleTaskListId: string
+  mealsFontSize: number
+  // Fridge panels — both share one optional Google Tasks list
+  fridgeGoogleAccountId:  string
+  fridgeGoogleTaskListId: string
   // Dropbox (tokens stored encrypted in main process only — not in this object)
   dropboxAppKey:       string
   dropboxFolderPath:   string
@@ -256,6 +275,10 @@ export interface AppSettings {
   activeStandbyMinutes:       number   // standby timeout in active mode, default 30
   motionSustainSeconds:       number   // seconds of sustained motion to switch to active, default 6
   activeHoldMinutes:          number   // minutes of no sustained motion before returning to passive, default 20
+  // Wyze Bridge
+  wyzeBridgeEmail:    string
+  wyzeBridgePassword: string
+  wyzeBridgeHost:     string
 }
 
 export interface WeatherData {
@@ -299,6 +322,8 @@ export interface CalendarDockAPI {
     getAll: () => Promise<AppSettings>
     setCalendarVisible: (calendarId: string, visible: boolean) => Promise<void>
     setCalendarColor: (calendarId: string, color: string) => Promise<void>
+    setCalendarOrder: (ids: string[]) => Promise<void>
+    setMealsFontSize: (size: number) => Promise<void>
     setWeatherLocation: (location: string) => Promise<void>
     setWeatherUnits: (units: 'imperial' | 'metric') => Promise<void>
     setWeatherApiKey: (apiKey: string) => Promise<void>
@@ -320,13 +345,15 @@ export interface CalendarDockAPI {
     setCameras:          (cameras: WyzeCamera[]) => Promise<void>
     setRachioApiKey:     (key: string) => Promise<void>
     setRinnaiCredentials:(email: string, password: string) => Promise<void>
-    setMealsGoogleTaskList: (accountId: string, taskListId: string) => Promise<void>
+    setMealsGoogleTaskList:  (accountId: string, taskListId: string) => Promise<void>
+    setFridgeGoogleTaskList: (accountId: string, taskListId: string) => Promise<void>
     setCameraWakeEnabled:    (enabled: boolean) => Promise<void>
     setDeepSleepSchedule:   (start: string, end: string) => Promise<void>
     setCameraWakeCalibration:(background: number[], threshold: number) => Promise<void>
     setCameraWakeThreshold:  (threshold: number) => Promise<void>
     setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => Promise<void>
     setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => Promise<void>
+    setWyzeBridgeConfig: (email: string, password: string, host: string) => Promise<void>
   }
   dropbox: {
     connect:      (appKey: string) => Promise<{ email: string }>
@@ -340,11 +367,19 @@ export interface CalendarDockAPI {
     startStream:    (cameraId: string) => Promise<string>   // returns local MJPEG URL
     stopStream:     (cameraId: string) => Promise<void>
     stopAllStreams:  () => Promise<void>
+    bridgeStatus:   () => Promise<BridgeStatus>
+    bridgeStart:    () => Promise<void>
+    bridgeStop:     () => Promise<void>
+    bridgeRemove:   () => Promise<void>
   }
   rachio: {
-    getDevices: () => Promise<RachioDevice[]>
-    startZone:  (zoneId: string, durationSec: number) => Promise<void>
-    stopAll:    (deviceId: string) => Promise<void>
+    getDevices:      () => Promise<RachioDevice[]>
+    startZone:       (zoneId: string, durationSec: number) => Promise<void>
+    stopAll:         (deviceId: string) => Promise<void>
+    getSchedules:    (deviceId: string) => Promise<RachioSchedule[]>
+    enableSchedule:  (scheduleId: string) => Promise<void>
+    disableSchedule: (scheduleId: string) => Promise<void>
+    skipSchedule:    (scheduleId: string) => Promise<void>
   }
   rinnai: {
     getDevices:       () => Promise<RinnaiDevice[]>

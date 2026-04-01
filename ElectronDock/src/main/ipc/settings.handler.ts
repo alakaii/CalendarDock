@@ -229,4 +229,32 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
       settingsService.setActiveDaySettings(standbyMinutes, sustainSeconds, holdMinutes)
     }
   )
+
+  ipcMain.handle(
+    'settings:set-calendar-order',
+    async (_event, { ids }: { ids: string[] }) => {
+      settingsService.setCalendarOrder(ids)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-meals-font-size',
+    async (_event, { size }: { size: number }) => {
+      settingsService.setMealsFontSize(size)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-fridge-google-task-list',
+    async (_event, { accountId, taskListId }: { accountId: string; taskListId: string }) => {
+      settingsService.setFridgeGoogleTaskList(accountId, taskListId)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-wyze-bridge-config',
+    async (_event, { email, password, host }: { email: string; password: string; host: string }) => {
+      settingsService.setWyzeBridgeConfig(email, password, host)
+    }
+  )
 }

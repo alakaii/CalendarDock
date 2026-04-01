@@ -20,4 +20,28 @@ export function registerRachioHandlers(): void {
     if (!apiKey) throw new Error('Rachio API key not configured')
     return rachioService.stopAll(apiKey, deviceId)
   })
+
+  ipcMain.handle('rachio:get-schedules', async (_event, { deviceId }: { deviceId: string }) => {
+    const apiKey = settingsService.get('rachioApiKey')
+    if (!apiKey) throw new Error('Rachio API key not configured')
+    return rachioService.getSchedules(apiKey, deviceId)
+  })
+
+  ipcMain.handle('rachio:enable-schedule', async (_event, { scheduleId }: { scheduleId: string }) => {
+    const apiKey = settingsService.get('rachioApiKey')
+    if (!apiKey) throw new Error('Rachio API key not configured')
+    return rachioService.enableSchedule(apiKey, scheduleId)
+  })
+
+  ipcMain.handle('rachio:disable-schedule', async (_event, { scheduleId }: { scheduleId: string }) => {
+    const apiKey = settingsService.get('rachioApiKey')
+    if (!apiKey) throw new Error('Rachio API key not configured')
+    return rachioService.disableSchedule(apiKey, scheduleId)
+  })
+
+  ipcMain.handle('rachio:skip-schedule', async (_event, { scheduleId }: { scheduleId: string }) => {
+    const apiKey = settingsService.get('rachioApiKey')
+    if (!apiKey) throw new Error('Rachio API key not configured')
+    return rachioService.skipSchedule(apiKey, scheduleId)
+  })
 }

@@ -78,6 +78,14 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-passive-day', { standbyMinutes, backlightOffMinutes }),
     setActiveDaySettings: (standbyMinutes, sustainSeconds, holdMinutes) =>
       ipcRenderer.invoke('settings:set-active-day', { standbyMinutes, sustainSeconds, holdMinutes }),
+    setCalendarOrder: (ids) =>
+      ipcRenderer.invoke('settings:set-calendar-order', { ids }),
+    setMealsFontSize: (size) =>
+      ipcRenderer.invoke('settings:set-meals-font-size', { size }),
+    setFridgeGoogleTaskList: (accountId, taskListId) =>
+      ipcRenderer.invoke('settings:set-fridge-google-task-list', { accountId, taskListId }),
+    setWyzeBridgeConfig: (email, password, host) =>
+      ipcRenderer.invoke('settings:set-wyze-bridge-config', { email, password, host }),
   },
 
   dropbox: {
@@ -95,12 +103,20 @@ const api: CalendarDockAPI = {
     startStream:   (cameraId) => ipcRenderer.invoke('cameras:start-stream', { cameraId }),
     stopStream:    (cameraId) => ipcRenderer.invoke('cameras:stop-stream', { cameraId }),
     stopAllStreams: ()         => ipcRenderer.invoke('cameras:stop-all'),
+    bridgeStatus:  () => ipcRenderer.invoke('cameras:bridge-status'),
+    bridgeStart:   () => ipcRenderer.invoke('cameras:bridge-start'),
+    bridgeStop:    () => ipcRenderer.invoke('cameras:bridge-stop'),
+    bridgeRemove:  () => ipcRenderer.invoke('cameras:bridge-remove'),
   },
 
   rachio: {
-    getDevices: ()                         => ipcRenderer.invoke('rachio:get-devices'),
-    startZone:  (zoneId, durationSec)      => ipcRenderer.invoke('rachio:start-zone', { zoneId, durationSec }),
-    stopAll:    (deviceId)                 => ipcRenderer.invoke('rachio:stop-all', { deviceId }),
+    getDevices:      ()                    => ipcRenderer.invoke('rachio:get-devices'),
+    startZone:       (zoneId, durationSec) => ipcRenderer.invoke('rachio:start-zone', { zoneId, durationSec }),
+    stopAll:         (deviceId)            => ipcRenderer.invoke('rachio:stop-all', { deviceId }),
+    getSchedules:    (deviceId)            => ipcRenderer.invoke('rachio:get-schedules', { deviceId }),
+    enableSchedule:  (scheduleId)          => ipcRenderer.invoke('rachio:enable-schedule', { scheduleId }),
+    disableSchedule: (scheduleId)          => ipcRenderer.invoke('rachio:disable-schedule', { scheduleId }),
+    skipSchedule:    (scheduleId)          => ipcRenderer.invoke('rachio:skip-schedule', { scheduleId }),
   },
 
   rinnai: {
