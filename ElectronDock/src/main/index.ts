@@ -1,10 +1,26 @@
 import { config as loadDotEnv } from 'dotenv'
 import { resolve as resolvePath } from 'path'
-
-// Load .env from project root before anything else
-loadDotEnv({ path: resolvePath(__dirname, '../../.env'), quiet: true })
+import { existsSync } from 'fs'
+import { homedir } from 'os'
 
 import { app, BrowserWindow, protocol, powerSaveBlocker } from 'electron'
+
+// Load credentials from the first .env that exists. In dev this is the
+// project root; on the kiosk it's a stable user-config path that survives
+// .deb upgrades. Bundling secrets inside the .deb would expose them in the
+// public repo's release artifacts, so we keep them out of the package.
+const envCandidates = [
+  resolvePath(homedir(), '.config', 'calendardock', 'credentials.env'),
+  app.isPackaged
+    ? resolvePath(app.getPath('userData'), 'credentials.env')
+    : resolvePath(__dirname, '../../.env'),
+]
+for (const path of envCandidates) {
+  if (existsSync(path)) {
+    loadDotEnv({ path, quiet: true })
+    break
+  }
+}
 import { createWindow } from './window'
 import { registerIpcHandlers } from './ipc'
 import { authService } from './services/auth.service'
