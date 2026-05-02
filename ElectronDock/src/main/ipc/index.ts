@@ -11,6 +11,7 @@ import { registerRinnaiHandlers } from './rinnai.handler'
 import { registerSettingsHandlers } from './settings.handler'
 import { registerSystemHandlers } from './system.handler'
 import { registerTasksHandlers } from './tasks.handler'
+import { registerUpdatesHandlers } from './updates.handler'
 import { registerWeatherHandlers } from './weather.handler'
 
 export function registerIpcHandlers(win: BrowserWindow): void {
@@ -26,5 +27,6 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   registerSettingsHandlers(win)
   registerSystemHandlers()
   registerTasksHandlers()
+  registerUpdatesHandlers(win)
   registerWeatherHandlers()
 }

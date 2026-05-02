@@ -465,7 +465,35 @@ export interface CalendarDockAPI {
   system: {
     setDisplayPower: (on: boolean) => Promise<void>
   }
+  updates: {
+    check: () => Promise<UpdateCheckResult>
+    install: () => Promise<void>
+    getSchedule: () => Promise<UpdateSchedule>
+    setSchedule: (schedule: UpdateSchedule) => Promise<UpdateSchedule>
+    onProgress: (cb: (p: UpdateProgress) => void) => void
+  }
 }
+
+export interface UpdateCheckResult {
+  currentVersion: string
+  latestVersion:  string | null
+  hasUpdate:      boolean
+  debUrl:         string | null
+  publishedAt:    string | null
+  unavailableReason?: string
+}
+
+export interface UpdateSchedule {
+  enabled: boolean
+  /** 24h "HH:MM" — local time */
+  time: string
+}
+
+export type UpdateProgress =
+  | { phase: 'downloading'; percent: number }
+  | { phase: 'installing' }
+  | { phase: 'restarting' }
+  | { phase: 'error'; message: string }
 
 declare global {
   interface Window {

@@ -1,0 +1,84 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ElectronDock/**'
+      - '.github/workflows/build-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: ElectronDock
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ElectronDock/package-lock.json
+
+      - name: Install build deps for electron-builder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fakeroot dpkg
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Compute build version
+        id: meta
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version.split('-')[0]")
+          BUILD_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
+          TAG="v${BUILD_VERSION}"
+          echo "base_version=${BASE_VERSION}"   >> "$GITHUB_OUTPUT"
+          echo "build_version=${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}"                     >> "$GITHUB_OUTPUT"
+
+      - name: Stamp version into package.json
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${{ steps.meta.outputs.build_version }}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Build .deb
+        run: npm run package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Locate .deb
+        id: deb
+        run: |
+          DEB=$(ls dist/*.deb | head -1)
+          if [ -z "$DEB" ]; then
+            echo "::error::No .deb produced"
+            exit 1
+          fi
+          echo "path=${DEB}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$DEB")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          body: |
+            Automated build from commit ${{ github.sha }}.
+
+            Installed by the kiosk's in-app updater.
+          files: ElectronDock/${{ steps.deb.outputs.path }}
+          make_latest: 'true'
+          fail_on_unmatched_files: true

@@ -92,6 +92,23 @@ chmod 440 "$SUDOERS_FILE"
 systemctl enable --now ssh
 echo "    SSH ready. Port 22."
 
+# ── 2b. In-app self-update (kiosk user → sudo helper) ──────────────────────────
+echo "==> Installing in-app self-update helper..."
+
+# Helper script the running app calls via sudo to install a downloaded .deb
+cp "$(dirname "$0")/calendardock-self-update.sh" /usr/local/bin/calendardock-self-update
+chmod 755 /usr/local/bin/calendardock-self-update
+chown root:root /usr/local/bin/calendardock-self-update
+
+# Sudoers rule: kiosk user may run ONLY this script as root, no password.
+# The script itself enforces that the .deb path is under /tmp.
+SUDOERS_KIOSK="/etc/sudoers.d/calendardock-kiosk-update"
+cat > "$SUDOERS_KIOSK" << EOF
+$KIOSK_USER ALL=(root) NOPASSWD: /usr/local/bin/calendardock-self-update /tmp/*.deb
+EOF
+chmod 440 "$SUDOERS_KIOSK"
+echo "    Self-update helper installed."
+
 # ── 3. Screensaver / DPMS ──────────────────────────────────────────────────────
 echo "==> Disabling screensaver / display power management..."
 sudo -u "$KIOSK_USER" bash -c "

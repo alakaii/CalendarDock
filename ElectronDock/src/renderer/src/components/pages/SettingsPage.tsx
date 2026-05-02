@@ -11,10 +11,11 @@ import ListsSettings from '../settings/ListsSettings'
 import CameraSettings from '../settings/CameraSettings'
 import CameraWakeSettings from '../settings/CameraWakeSettings'
 import RingSettings from '../settings/RingSettings'
+import UpdatesSettings from '../settings/UpdatesSettings'
 
 type Section =
   | 'general' | 'accounts' | 'calendars' | 'weather' | 'photos' | 'standby'
-  | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras' | 'ring'
+  | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras' | 'ring' | 'updates'
 
 const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'general',   label: 'General',     icon: '⚙️' },
@@ -29,6 +30,7 @@ const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'lists',     label: 'Lists',       icon: '📋' },
   { id: 'cameras',   label: 'Cameras',     icon: '📹' },
   { id: 'ring',      label: 'Ring',        icon: '🔔' },
+  { id: 'updates',   label: 'Updates',     icon: '⬆️' },
 ]
 
 export default function SettingsPage() {
@@ -78,6 +80,7 @@ export default function SettingsPage() {
         {section === 'lists'     && <ListsSettings />}
         {section === 'cameras'   && <CameraSettings />}
         {section === 'ring'      && <RingSettings />}
+        {section === 'updates'   && <UpdatesSettings />}
       </div>
     </div>
   )

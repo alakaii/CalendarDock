@@ -180,6 +180,16 @@ const api: CalendarDockAPI = {
   system: {
     setDisplayPower: (on) => ipcRenderer.invoke('system:set-display-power', { on }),
   },
+
+  updates: {
+    check:       () => ipcRenderer.invoke('updates:check'),
+    install:     () => ipcRenderer.invoke('updates:install'),
+    getSchedule: () => ipcRenderer.invoke('updates:get-schedule'),
+    setSchedule: (schedule) => ipcRenderer.invoke('updates:set-schedule', schedule),
+    onProgress: (cb) => {
+      ipcRenderer.on('updates:progress', (_event, p) => cb(p))
+    },
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)
