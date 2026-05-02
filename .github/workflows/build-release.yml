@@ -27,10 +27,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: ElectronDock/package-lock.json
 
-      - name: Install build deps for electron-builder
+      - name: Install build deps for electron-builder (.deb target)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends fakeroot dpkg
+          sudo apt-get install -y --no-install-recommends \
+            fakeroot dpkg rpm libarchive-tools \
+            libnotify4 libxtst6 libnss3
 
       - name: Install npm deps
         run: npm ci
