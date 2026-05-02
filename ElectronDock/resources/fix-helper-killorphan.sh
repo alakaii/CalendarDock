@@ -1,21 +1,21 @@
 #!/bin/bash
-# CalendarDock — kiosk self-update
-# Invoked from the running app via:
-#   sudo /usr/local/bin/calendardock-self-update <path-to-deb>
-#
-# The kiosk user is granted NOPASSWD sudo for this exact path
-# (see setup-kiosk.sh).
-
+# Patch installed self-update helper to force-kill orphan processes before
+# starting the new version, avoiding EADDRINUSE on update.
 set -euo pipefail
 
-DEB="${1:-}"
+if [ "$EUID" -ne 0 ]; then
+  echo "ERROR: must run as root" >&2
+  exit 1
+fi
 
+cat > /usr/local/bin/calendardock-self-update << 'HELPER'
+#!/bin/bash
+set -euo pipefail
+DEB="${1:-}"
 if [ -z "$DEB" ] || [ ! -f "$DEB" ]; then
   echo "ERROR: missing or invalid .deb path: '$DEB'" >&2
   exit 1
 fi
-
-# Refuse anything outside /tmp — the app always downloads to /tmp.
 case "$DEB" in
   /tmp/*) ;;
   *)
@@ -23,28 +23,22 @@ case "$DEB" in
     exit 2
     ;;
 esac
-
 echo "Installing $DEB..."
 dpkg -i "$DEB"
-
-# Re-assert chrome-sandbox SUID after every install — package post-install
-# isn't reliable on Ubuntu and Electron crashes without it.
 if [ -f /opt/CalendarDock/chrome-sandbox ]; then
   chown root:root /opt/CalendarDock/chrome-sandbox
   chmod 4755     /opt/CalendarDock/chrome-sandbox
 fi
-
-echo "Cleaning up..."
 rm -f "$DEB"
-
-# Stop, force-kill any orphans, then start. A plain `systemctl restart`
-# can leave child processes alive holding ports (54321/54322), causing the
-# new instance to crash with EADDRINUSE. Belt-and-suspenders.
 echo "Stopping calendardock..."
 systemctl stop calendardock || true
 pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
 sleep 1
 echo "Starting calendardock..."
 systemctl start calendardock
-
 echo "Done."
+HELPER
+chmod 755 /usr/local/bin/calendardock-self-update
+chown root:root /usr/local/bin/calendardock-self-update
+
+echo "Helper patched."

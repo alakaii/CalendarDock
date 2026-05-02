@@ -74,8 +74,12 @@ if [ -f /opt/CalendarDock/chrome-sandbox ]; then
   chmod 4755     /opt/CalendarDock/chrome-sandbox
 fi
 rm -f "$DEB"
-echo "Restarting calendardock..."
-systemctl restart calendardock
+echo "Stopping calendardock..."
+systemctl stop calendardock || true
+pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
+sleep 1
+echo "Starting calendardock..."
+systemctl start calendardock
 echo "Done."
 HELPER
 chmod 755 /usr/local/bin/calendardock-self-update
