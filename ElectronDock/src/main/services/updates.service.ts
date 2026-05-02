@@ -7,7 +7,9 @@ import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
 import Store from 'electron-store'
 
-const RELEASES_API = 'https://api.github.com/repos/alakaii/CalendarDock/releases/latest'
+// Use /releases (not /releases/latest) so prerelease tags like
+// "v1.0.0-build.42" — which GitHub auto-marks as pre-releases — are visible.
+const RELEASES_API = 'https://api.github.com/repos/alakaii/CalendarDock/releases?per_page=10'
 const HELPER_PATH  = '/usr/local/bin/calendardock-self-update'
 
 type Schedule = {
@@ -77,7 +79,12 @@ async function fetchLatestRelease(): Promise<Release> {
   if (!res.ok) {
     throw new Error(`GitHub API ${res.status}: ${await res.text()}`)
   }
-  return (await res.json()) as Release
+  const list = (await res.json()) as Release[]
+  const latest = list.find(
+    (r) => !(r as { draft?: boolean }).draft && r.assets?.some((a) => a.name.endsWith('.deb'))
+  )
+  if (!latest) throw new Error('No published release with a .deb asset found.')
+  return latest
 }
 
 function pickDebAsset(release: Release): ReleaseAsset | null {

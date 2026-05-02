@@ -27,6 +27,13 @@ esac
 echo "Installing $DEB..."
 dpkg -i "$DEB"
 
+# Re-assert chrome-sandbox SUID after every install — package post-install
+# isn't reliable on Ubuntu and Electron crashes without it.
+if [ -f /opt/CalendarDock/chrome-sandbox ]; then
+  chown root:root /opt/CalendarDock/chrome-sandbox
+  chmod 4755     /opt/CalendarDock/chrome-sandbox
+fi
+
 echo "Cleaning up..."
 rm -f "$DEB"
 

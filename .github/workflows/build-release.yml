@@ -83,4 +83,5 @@ jobs:
             Installed by the kiosk's in-app updater.
           files: ElectronDock/${{ steps.deb.outputs.path }}
           make_latest: 'true'
+          prerelease: false
           fail_on_unmatched_files: true
