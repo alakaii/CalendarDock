@@ -108,7 +108,7 @@ Environment=WAYLAND_DISPLAY=wayland-0
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$KIOSK_UID/bus
 Environment=HOME=/home/$KIOSK_USER
 WorkingDirectory=/home/$KIOSK_USER
-ExecStart=$APP_PATH --ozone-platform=wayland --enable-features=UseOzonePlatform
+ExecStart=$APP_PATH --ozone-platform=wayland --enable-features=UseOzonePlatform --password-store=basic
 Restart=on-failure
 RestartSec=5
 
