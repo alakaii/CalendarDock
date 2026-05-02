@@ -257,4 +257,11 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
       settingsService.setWyzeBridgeConfig(email, password, host)
     }
   )
+
+  ipcMain.handle(
+    'settings:set-ring-snapshot-interval',
+    async (_event, { seconds }: { seconds: number }) => {
+      settingsService.setRingSnapshotInterval(seconds)
+    }
+  )
 }

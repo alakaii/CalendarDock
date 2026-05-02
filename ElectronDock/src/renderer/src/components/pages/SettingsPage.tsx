@@ -10,10 +10,11 @@ import MealsSettings from '../settings/MealsSettings'
 import ListsSettings from '../settings/ListsSettings'
 import CameraSettings from '../settings/CameraSettings'
 import CameraWakeSettings from '../settings/CameraWakeSettings'
+import RingSettings from '../settings/RingSettings'
 
 type Section =
   | 'general' | 'accounts' | 'calendars' | 'weather' | 'photos' | 'standby'
-  | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras'
+  | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras' | 'ring'
 
 const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'general',   label: 'General',     icon: '⚙️' },
@@ -27,6 +28,7 @@ const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'meals',     label: 'Meals',       icon: '🍽' },
   { id: 'lists',     label: 'Lists',       icon: '📋' },
   { id: 'cameras',   label: 'Cameras',     icon: '📹' },
+  { id: 'ring',      label: 'Ring',        icon: '🔔' },
 ]
 
 export default function SettingsPage() {
@@ -75,6 +77,7 @@ export default function SettingsPage() {
         {section === 'meals'     && <MealsSettings />}
         {section === 'lists'     && <ListsSettings />}
         {section === 'cameras'   && <CameraSettings />}
+        {section === 'ring'      && <RingSettings />}
       </div>
     </div>
   )

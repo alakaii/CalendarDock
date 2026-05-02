@@ -137,6 +137,37 @@ export interface WyzeCamera {
   rtspUrl: string
 }
 
+// ---- Ring ----
+
+export interface RingCameraInfo {
+  /** Ring's numeric device id, stringified */
+  id: string
+  name: string
+  /** e.g. 'doorbell_v3', 'stickup_cam_lunar' — useful for an icon hint */
+  deviceType: string
+  hasBattery: boolean
+  /** 0–100 if known */
+  batteryLevel: number | null
+  /** True when the camera is reachable on Ring's network */
+  online: boolean
+}
+
+export type RingConnectionState =
+  | 'disconnected'
+  | 'connecting'
+  | 'needs-2fa'
+  | 'connected'
+  | 'error'
+
+export interface RingStatus {
+  state: RingConnectionState
+  email: string
+  /** Last error message, if state is 'error' */
+  errorMessage: string
+  /** When state is 'needs-2fa', the prompt sent by Ring (e.g. "Code sent to ***1234") */
+  twoFactorPrompt: string
+}
+
 // ---- Rachio ----
 
 export interface RachioZone {
@@ -279,6 +310,10 @@ export interface AppSettings {
   wyzeBridgeEmail:    string
   wyzeBridgePassword: string
   wyzeBridgeHost:     string
+  // Ring (refresh token stored encrypted in main process — not in this object)
+  ringAccountEmail:        string
+  /** How often (seconds) to refresh each Ring snapshot. Min 5. */
+  ringSnapshotIntervalSec: number
 }
 
 export interface WeatherData {
@@ -354,6 +389,7 @@ export interface CalendarDockAPI {
     setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => Promise<void>
     setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => Promise<void>
     setWyzeBridgeConfig: (email: string, password: string, host: string) => Promise<void>
+    setRingSnapshotInterval: (seconds: number) => Promise<void>
   }
   dropbox: {
     connect:      (appKey: string) => Promise<{ email: string }>
@@ -385,6 +421,17 @@ export interface CalendarDockAPI {
     getDevices:       () => Promise<RinnaiDevice[]>
     setTemperature:   (thingName: string, temp: number) => Promise<void>
     setRecirculation: (thingName: string, enabled: boolean, durationMinutes?: number) => Promise<void>
+  }
+  ring: {
+    /** Begin login. If 2FA is required, status returns 'needs-2fa' and Ring sends a code. */
+    connect:     (email: string, password: string) => Promise<RingStatus>
+    /** Submit the 2FA code Ring sent. Resolves to 'connected' or 'error'. */
+    submit2fa:   (code: string) => Promise<RingStatus>
+    disconnect:  () => Promise<void>
+    getStatus:   () => Promise<RingStatus>
+    listCameras: () => Promise<RingCameraInfo[]>
+    /** URL of an HTTP endpoint that returns the latest snapshot for this camera as a JPEG. */
+    snapshotUrl: (cameraId: string) => Promise<string>
   }
   lists: {
     addList: (name: string) => Promise<AppList>

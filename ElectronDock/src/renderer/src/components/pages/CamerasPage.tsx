@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
-import type { WyzeCamera } from '../../../../preload/types'
+import type { WyzeCamera, RingCameraInfo } from '../../../../preload/types'
 
-function CameraTile({ camera }: { camera: WyzeCamera }) {
+function WyzeTile({ camera }: { camera: WyzeCamera }) {
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [error, setError]         = useState<string | null>(null)
   const [loading, setLoading]     = useState(true)
@@ -76,17 +76,95 @@ function CameraTile({ camera }: { camera: WyzeCamera }) {
   )
 }
 
-export default function CamerasPage() {
-  const cameras = useSettingsStore((s) => s.cameras)
+function RingTile({ camera, intervalSec }: { camera: RingCameraInfo; intervalSec: number }) {
+  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null)
+  const [bust, setBust]               = useState(() => Date.now())
+  const [error, setError]             = useState<string | null>(null)
+  const [loading, setLoading]         = useState(true)
 
-  // Stop all streams when leaving the page
+  useEffect(() => {
+    let active = true
+    window.api.ring?.snapshotUrl(camera.id)
+      .then((url) => { if (active) setSnapshotUrl(url) })
+      .catch((err: Error) => { if (active) setError(err.message) })
+    return () => { active = false }
+  }, [camera.id])
+
+  useEffect(() => {
+    if (!snapshotUrl) return
+    const ms = Math.max(5, intervalSec) * 1000
+    const handle = setInterval(() => setBust(Date.now()), ms)
+    return () => clearInterval(handle)
+  }, [snapshotUrl, intervalSec])
+
+  return (
+    <div
+      className="relative rounded-2xl overflow-hidden flex-shrink-0"
+      style={{
+        background: '#000',
+        border: '1px solid var(--border)',
+        aspectRatio: '16/9',
+      }}
+    >
+      {loading && !error && (
+        <div className="absolute inset-0 flex items-center justify-center"
+             style={{ color: 'var(--text-secondary)' }}>
+          <svg className="w-8 h-8 animate-spin opacity-50" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+          </svg>
+        </div>
+      )}
+
+      {error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center"
+             style={{ color: '#f87171' }}>
+          <p className="text-xs">{error}</p>
+        </div>
+      )}
+
+      {snapshotUrl && !error && (
+        <img
+          src={`${snapshotUrl}?t=${bust}`}
+          className="w-full h-full object-contain"
+          onLoad={() => setLoading(false)}
+          onError={() => { setError('Snapshot failed'); setLoading(false) }}
+        />
+      )}
+
+      <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center justify-between"
+           style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.7))' }}>
+        <p className="text-sm font-semibold text-white">{camera.name}</p>
+        <span className="text-xs text-white opacity-70">Ring</span>
+      </div>
+    </div>
+  )
+}
+
+export default function CamerasPage() {
+  const wyzeCameras = useSettingsStore((s) => s.cameras)
+  const intervalSec = useSettingsStore((s) => s.ringSnapshotIntervalSec)
+
+  const [ringCameras, setRingCameras] = useState<RingCameraInfo[]>([])
+
+  useEffect(() => {
+    let active = true
+    window.api.ring?.listCameras()
+      .then((list) => { if (active) setRingCameras(list ?? []) })
+      .catch(() => { if (active) setRingCameras([]) })
+    return () => { active = false }
+  }, [])
+
+  // Stop all Wyze streams when leaving the page
   useEffect(() => {
     return () => {
       window.api.cameras?.stopAllStreams().catch(() => {})
     }
   }, [])
 
-  if (cameras.length === 0) {
+  const total = wyzeCameras.length + ringCameras.length
+
+  if (total === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 px-8"
            style={{ background: 'var(--bg-base)', color: 'var(--text-secondary)' }}>
@@ -96,7 +174,7 @@ export default function CamerasPage() {
         </svg>
         <div className="text-center space-y-1">
           <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>No cameras configured</p>
-          <p className="text-sm">Go to Settings → Cameras to add RTSP stream URLs.</p>
+          <p className="text-sm">Add Wyze cameras under Settings → Cameras, or connect Ring under Settings → Ring.</p>
         </div>
       </div>
     )
@@ -105,8 +183,11 @@ export default function CamerasPage() {
   return (
     <div className="h-full overflow-auto" style={{ background: 'var(--bg-base)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-        {cameras.map((camera) => (
-          <CameraTile key={camera.id} camera={camera} />
+        {wyzeCameras.map((camera) => (
+          <WyzeTile key={`wyze-${camera.id}`} camera={camera} />
+        ))}
+        {ringCameras.map((camera) => (
+          <RingTile key={`ring-${camera.id}`} camera={camera} intervalSec={intervalSec} />
         ))}
       </div>
     </div>

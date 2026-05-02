@@ -12,6 +12,7 @@ import { photosService } from './services/photos.service'
 import { settingsService } from './services/settings.service'
 import { photoQueueService } from './services/photoQueue.service'
 import { wyzeBridgeService } from './services/wyze-bridge.service'
+import { ringService } from './services/ring.service'
 import { is } from '@electron-toolkit/utils'
 
 // ── Kiosk / touchscreen flags (must be set before app.ready) ────────────────
@@ -72,6 +73,9 @@ if (!gotLock) {
     const wyzeEmail = settingsService.get('wyzeBridgeEmail') ?? ''
     const wyzePass  = settingsService.get('wyzeBridgePassword') ?? ''
     wyzeBridgeService.ensureRunning(wyzeEmail, wyzePass).catch(() => {})
+
+    // Revive Ring connection if a refresh token is stored
+    ringService.ensureInitialized().catch(() => {})
 
     // Restore saved OAuth clients
     await authService.initialize()

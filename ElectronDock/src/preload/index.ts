@@ -86,6 +86,8 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-fridge-google-task-list', { accountId, taskListId }),
     setWyzeBridgeConfig: (email, password, host) =>
       ipcRenderer.invoke('settings:set-wyze-bridge-config', { email, password, host }),
+    setRingSnapshotInterval: (seconds) =>
+      ipcRenderer.invoke('settings:set-ring-snapshot-interval', { seconds }),
   },
 
   dropbox: {
@@ -124,6 +126,15 @@ const api: CalendarDockAPI = {
     setTemperature:   (thingName, temp)           => ipcRenderer.invoke('rinnai:set-temperature', { thingName, temp }),
     setRecirculation: (thingName, enabled, durationMinutes) =>
       ipcRenderer.invoke('rinnai:set-recirculation', { thingName, enabled, durationMinutes }),
+  },
+
+  ring: {
+    connect:     (email, password) => ipcRenderer.invoke('ring:connect', { email, password }),
+    submit2fa:   (code)            => ipcRenderer.invoke('ring:submit-2fa', { code }),
+    disconnect:  ()                => ipcRenderer.invoke('ring:disconnect'),
+    getStatus:   ()                => ipcRenderer.invoke('ring:get-status'),
+    listCameras: ()                => ipcRenderer.invoke('ring:list-cameras'),
+    snapshotUrl: (cameraId)        => ipcRenderer.invoke('ring:snapshot-url', { cameraId }),
   },
 
   lists: {

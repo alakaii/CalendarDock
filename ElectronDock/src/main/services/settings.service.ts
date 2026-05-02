@@ -17,6 +17,8 @@ type StoredSettings = AppSettings & {
   dropboxAccessTokenExpiry:     number
   dropboxEncryptedRefreshToken: string
   dropboxAccountId:             string
+  // Ring refresh token stored encrypted — never sent to renderer
+  ringEncryptedRefreshToken:    string
 }
 
 const defaults: StoredSettings = {
@@ -103,6 +105,9 @@ const defaults: StoredSettings = {
   wyzeBridgeEmail:    '',
   wyzeBridgePassword: '',
   wyzeBridgeHost:     'localhost:8554',
+  ringEncryptedRefreshToken: '',
+  ringAccountEmail:          '',
+  ringSnapshotIntervalSec:   30,
 }
 
 const store = new Store<StoredSettings>({
@@ -393,5 +398,38 @@ export const settingsService = {
     store.set('wyzeBridgeEmail',    email)
     store.set('wyzeBridgePassword', password)
     store.set('wyzeBridgeHost',     host)
+  },
+
+  // ---- Ring ----
+
+  setRingRefreshToken(refreshToken: string): void {
+    const canEncrypt = safeStorage.isEncryptionAvailable()
+    store.set(
+      'ringEncryptedRefreshToken',
+      canEncrypt ? safeStorage.encryptString(refreshToken).toString('base64') : refreshToken
+    )
+  },
+
+  getRingRefreshToken(): string {
+    const enc = store.get('ringEncryptedRefreshToken') as string
+    if (!enc) return ''
+    const canEncrypt = safeStorage.isEncryptionAvailable()
+    try {
+      return canEncrypt ? safeStorage.decryptString(Buffer.from(enc, 'base64')) : enc
+    } catch {
+      return ''
+    }
+  },
+
+  clearRingRefreshToken(): void {
+    store.set('ringEncryptedRefreshToken', '')
+  },
+
+  setRingAccountEmail(email: string): void {
+    store.set('ringAccountEmail', email)
+  },
+
+  setRingSnapshotInterval(seconds: number): void {
+    store.set('ringSnapshotIntervalSec', Math.max(5, Math.floor(seconds)))
   },
 }

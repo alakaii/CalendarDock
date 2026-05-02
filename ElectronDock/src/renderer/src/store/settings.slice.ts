@@ -39,6 +39,7 @@ interface SettingsState extends AppSettings {
   setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => void
   setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => void
   setWyzeBridgeConfig: (email: string, password: string, host: string) => void
+  setRingSnapshotInterval: (seconds: number) => void
 }
 
 const defaults: AppSettings = {
@@ -115,6 +116,8 @@ const defaults: AppSettings = {
   wyzeBridgeEmail:    '',
   wyzeBridgePassword: '',
   wyzeBridgeHost:     'localhost:8554',
+  ringAccountEmail:        '',
+  ringSnapshotIntervalSec: 30,
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -322,5 +325,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setWyzeBridgeConfig: (email, password, host) => {
     window.api.settings.setWyzeBridgeConfig(email, password, host)
     set({ wyzeBridgeEmail: email, wyzeBridgePassword: password, wyzeBridgeHost: host })
+  },
+
+  setRingSnapshotInterval: (seconds) => {
+    const clamped = Math.max(5, Math.floor(seconds))
+    window.api.settings.setRingSnapshotInterval(clamped)
+    set({ ringSnapshotIntervalSec: clamped })
   },
 }))

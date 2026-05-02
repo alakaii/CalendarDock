@@ -6,6 +6,7 @@ import { registerCamerasHandlers } from './cameras.handler'
 import { registerListsHandlers } from './lists.handler'
 import { registerPhotosHandlers } from './photos.handler'
 import { registerRachioHandlers } from './rachio.handler'
+import { registerRingHandlers } from './ring.handler'
 import { registerRinnaiHandlers } from './rinnai.handler'
 import { registerSettingsHandlers } from './settings.handler'
 import { registerSystemHandlers } from './system.handler'
@@ -20,6 +21,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   registerListsHandlers()
   registerPhotosHandlers()
   registerRachioHandlers()
+  registerRingHandlers()
   registerRinnaiHandlers()
   registerSettingsHandlers(win)
   registerSystemHandlers()
