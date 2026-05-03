@@ -101,7 +101,7 @@ npm install
 
 ### Environment variables
 
-Copy `.env.example` to `.env` in `ElectronDock/` and fill in:
+Create a `.env` file in `ElectronDock/` (dev) or `~/.config/calendardock/credentials.env` (kiosk) with:
 
 ```
 GOOGLE_CLIENT_ID=...
@@ -110,7 +110,9 @@ GOOGLE_CLIENT_SECRET=...
 
 These come from a **Desktop app** OAuth client at <https://console.cloud.google.com> → APIs & Services → Credentials. Enable the **Google Calendar API** and **Google Tasks API** for the project.
 
-That's the only build-time secret. Everything else (Dropbox, Rachio, OpenWeatherMap, Rinnai login, Ring login, Wyze bridge config) is entered at runtime from the Settings UI and stored encrypted by `electron-store` + Electron `safeStorage` (DPAPI on Windows, Keychain on macOS, libsecret on Linux).
+The credentials file is loaded from outside the package on purpose — the `.deb` is published to a public GitHub Release, so secrets must never be bundled.
+
+Everything else (Dropbox, Rachio, OpenWeatherMap, Rinnai login, Ring login, Wyze bridge config) is entered at runtime from the Settings UI and stored encrypted by `electron-store` + Electron `safeStorage`.
 
 ### Run in development
 
@@ -206,13 +208,48 @@ App icon comes from `build/icon.ico` (Windows) and `build/icon.png` (Linux).
 
 ## Deploying to the kiosk
 
-`ElectronDock/deploy.sh` is the one-shot deploy script for the kitchen kiosk. It builds the `.deb`, scps it over SSH, and triggers the install via a `ForceCommand` deploy user (set up out-of-band — passwordless sudo for `dpkg -i` only). Open the file, set `KIOSK_HOST` to your kiosk's IP, then:
+CalendarDock has a self-contained update pipeline — once a kiosk is bootstrapped, you push to `main` and the kiosk picks up the update with one tap.
+
+### One-time bootstrap
+
+The kiosk targets Ubuntu 24.04 with GDM autologin to a Wayland session. From a fresh install:
 
 ```bash
-bash ElectronDock/deploy.sh
+# On the kiosk (or via SSH from your dev machine)
+curl -fsSL https://raw.githubusercontent.com/alakaii/CalendarDock/main/ElectronDock/resources/kiosk-bootstrap.sh -o /tmp/cd-setup.sh
+sudo bash /tmp/cd-setup.sh
 ```
 
-For first-time kiosk setup (sudo, ssh, ffmpeg, Node, autostart), follow the standard Ubuntu kiosk instructions; CalendarDock just needs Node 20+ at install time and ffmpeg at runtime.
+`kiosk-bootstrap.sh` is idempotent. It auto-detects the autologin user, installs ffmpeg + the systemd service, downloads the latest `.deb` from GitHub Releases, fixes the chrome-sandbox SUID bit, and starts the app.
+
+After bootstrap, copy your `.env` to the kiosk so OAuth flows work:
+
+```bash
+scp ElectronDock/.env <kiosk-user>@<kiosk>:~/.config/calendardock/credentials.env
+```
+
+### Ongoing updates
+
+Every push to `main` triggers `.github/workflows/build-release.yml`, which builds an `.amd64.deb` and publishes it as a GitHub Release tagged `v{version}-build.{run_number}`.
+
+On the kiosk, **Settings → Updates → Check Now → Install** does the rest:
+
+1. Downloads the latest `.deb` from GitHub Releases
+2. Calls `sudo /usr/local/bin/calendardock-self-update <deb>` (allowed via a NOPASSWD sudoers rule scoped to that exact command + `/tmp/*.deb`)
+3. The helper runs `dpkg -i`, re-asserts chrome-sandbox SUID, kills any orphaned processes, and restarts the systemd service
+
+Settings → Updates also has an optional daily "auto-check" toggle.
+
+### Why this exists (and what to know if you're reproducing it)
+
+A few things in `kiosk-bootstrap.sh` and `calendardock.service` look strange at first; they're load-bearing on Ubuntu 24 + Wayland + autologin:
+
+- The systemd service runs as the **autologin user** (the one who owns the active Wayland session), not a dedicated `kiosk` user. Without an active session you have no display.
+- `--ozone-platform=wayland --enable-features=UseOzonePlatform` is required, otherwise Electron picks X11 and dies (no `DISPLAY` for systemd-launched processes).
+- `--password-store=basic` is required for `safeStorage` to behave consistently — the default gnome_libsecret backend is unreliable when no keyring is unlocked.
+- Snap-confined Firefox can't be reliably launched via `xdg-open` from a systemd service, so OAuth flows spawn `/snap/bin/firefox` (or other browser paths) directly.
+
+The original `ElectronDock/deploy.sh` (build-on-dev, scp-to-kiosk) is preserved for one-off or air-gapped installs but isn't the recommended path anymore.
 
 ---
 
