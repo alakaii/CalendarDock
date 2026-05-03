@@ -149,14 +149,25 @@ export const dropboxService = {
     const token  = await this.getAccessToken()
     const photos: string[] = []
 
+    const reqBody = JSON.stringify({ path: folderPath, recursive: true, limit: 2000 })
     let res = await fetch(LIST_URL, {
       method:  'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ path: folderPath, recursive: true, limit: 2000 }),
+      body:    reqBody,
     })
     if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as any
-      throw new Error(`Dropbox list failed: ${err?.error_summary ?? res.status}`)
+      const rawBody = await res.text().catch(() => '<unreadable>')
+      console.error('[dropbox] list_folder failed', {
+        status: res.status,
+        statusText: res.statusText,
+        sentPath: folderPath,
+        sentBody: reqBody,
+        tokenPrefix: token.slice(0, 6) + '...',
+        responseBody: rawBody,
+      })
+      let summary: string | undefined
+      try { summary = JSON.parse(rawBody)?.error_summary } catch { /* not json */ }
+      throw new Error(`Dropbox list failed: ${summary ?? res.status} — ${rawBody.slice(0, 200)}`)
     }
     let data = await res.json() as any
 
