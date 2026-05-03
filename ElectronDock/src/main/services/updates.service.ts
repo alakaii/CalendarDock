@@ -69,6 +69,17 @@ function stripV(tag: string): string {
   return tag.startsWith('v') ? tag.slice(1) : tag
 }
 
+/**
+ * GitHub's /releases endpoint isn't reliably sorted (we've seen build.10
+ * listed after build.7), so taking the first element gives the wrong
+ * result. Parse the build number out of the v{base}-build.{n} tag and
+ * pick the release with the highest n.
+ */
+function buildNumber(tag: string): number {
+  const m = /-build\.(\d+)$/.exec(tag)
+  return m ? parseInt(m[1], 10) : -1
+}
+
 async function fetchLatestRelease(): Promise<Release> {
   const res = await fetch(RELEASES_API, {
     headers: {
@@ -80,11 +91,12 @@ async function fetchLatestRelease(): Promise<Release> {
     throw new Error(`GitHub API ${res.status}: ${await res.text()}`)
   }
   const list = (await res.json()) as Release[]
-  const latest = list.find(
+  const candidates = list.filter(
     (r) => !(r as { draft?: boolean }).draft && r.assets?.some((a) => a.name.endsWith('.deb'))
   )
-  if (!latest) throw new Error('No published release with a .deb asset found.')
-  return latest
+  if (candidates.length === 0) throw new Error('No published release with a .deb asset found.')
+  candidates.sort((a, b) => buildNumber(b.tag_name) - buildNumber(a.tag_name))
+  return candidates[0]
 }
 
 function pickDebAsset(release: Release): ReleaseAsset | null {
