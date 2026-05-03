@@ -192,18 +192,15 @@ export const authService = {
   }
 }
 
+// Always round-trip through safeStorage. When the OS keyring isn't available
+// (Linux autologin) safeStorage falls back to base64 internally, which is
+// still symmetric — calling encryptString and decryptString as a pair always
+// recovers the original. The previous canEncrypt-conditional branch caused
+// asymmetric encrypt/decrypt that produced malformed tokens.
 function encryptToken(token: string): string {
-  if (safeStorage.isEncryptionAvailable()) {
-    return safeStorage.encryptString(token).toString('base64')
-  }
-  console.warn('safeStorage not available — storing token unencrypted')
-  return Buffer.from(token).toString('base64')
+  return safeStorage.encryptString(token).toString('base64')
 }
 
 function decryptToken(encrypted: string): string {
-  const buf = Buffer.from(encrypted, 'base64')
-  if (safeStorage.isEncryptionAvailable()) {
-    return safeStorage.decryptString(buf)
-  }
-  return buf.toString('utf-8')
+  return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
 }

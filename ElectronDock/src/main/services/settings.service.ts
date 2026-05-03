@@ -313,11 +313,11 @@ export const settingsService = {
   // ---- Dropbox ----
 
   setDropboxTokens(accessToken: string, refreshToken: string, accountId: string, expiry = 0): void {
-    const canEncrypt = safeStorage.isEncryptionAvailable()
-    store.set('dropboxEncryptedAccessToken',
-      canEncrypt ? safeStorage.encryptString(accessToken).toString('base64') : accessToken)
-    store.set('dropboxEncryptedRefreshToken',
-      canEncrypt ? safeStorage.encryptString(refreshToken).toString('base64') : refreshToken)
+    // Always use safeStorage round-trip; it falls back to base64 when no
+    // OS keyring is available (Linux autologin), which is still symmetric.
+    // The previous canEncrypt branch caused asymmetric set/get on Linux.
+    store.set('dropboxEncryptedAccessToken',  safeStorage.encryptString(accessToken).toString('base64'))
+    store.set('dropboxEncryptedRefreshToken', safeStorage.encryptString(refreshToken).toString('base64'))
     store.set('dropboxAccessTokenExpiry', expiry)
     store.set('dropboxAccountId', accountId)
   },
@@ -326,10 +326,9 @@ export const settingsService = {
     const encAT = store.get('dropboxEncryptedAccessToken')
     const encRT = store.get('dropboxEncryptedRefreshToken')
     if (!encAT || !encRT) return null
-    const canEncrypt = safeStorage.isEncryptionAvailable()
     try {
-      const accessToken  = canEncrypt ? safeStorage.decryptString(Buffer.from(encAT, 'base64')) : encAT
-      const refreshToken = canEncrypt ? safeStorage.decryptString(Buffer.from(encRT, 'base64')) : encRT
+      const accessToken  = safeStorage.decryptString(Buffer.from(encAT, 'base64'))
+      const refreshToken = safeStorage.decryptString(Buffer.from(encRT, 'base64'))
       return {
         accessToken,
         refreshToken,
@@ -403,19 +402,14 @@ export const settingsService = {
   // ---- Ring ----
 
   setRingRefreshToken(refreshToken: string): void {
-    const canEncrypt = safeStorage.isEncryptionAvailable()
-    store.set(
-      'ringEncryptedRefreshToken',
-      canEncrypt ? safeStorage.encryptString(refreshToken).toString('base64') : refreshToken
-    )
+    store.set('ringEncryptedRefreshToken', safeStorage.encryptString(refreshToken).toString('base64'))
   },
 
   getRingRefreshToken(): string {
     const enc = store.get('ringEncryptedRefreshToken') as string
     if (!enc) return ''
-    const canEncrypt = safeStorage.isEncryptionAvailable()
     try {
-      return canEncrypt ? safeStorage.decryptString(Buffer.from(enc, 'base64')) : enc
+      return safeStorage.decryptString(Buffer.from(enc, 'base64'))
     } catch {
       return ''
     }
