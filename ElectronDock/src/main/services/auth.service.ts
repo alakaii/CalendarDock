@@ -1,10 +1,37 @@
 import * as http from 'http'
 import * as net from 'net'
+import { spawn } from 'child_process'
+import { existsSync } from 'fs'
 import { safeStorage, shell } from 'electron'
 import { google } from 'googleapis'
 import { OAuth2Client } from 'google-auth-library'
 import { randomUUID } from 'crypto'
 import { settingsService } from './settings.service'
+
+// xdg-open is unreliable on snap-confined Linux kiosks. Spawn a known
+// browser directly when one exists; fall back to shell.openExternal.
+function openInBrowser(url: string): void {
+  if (process.platform === 'linux') {
+    const candidates = [
+      '/snap/bin/firefox',
+      '/usr/bin/firefox',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/usr/bin/google-chrome',
+    ]
+    for (const bin of candidates) {
+      if (existsSync(bin)) {
+        try {
+          spawn(bin, [url], { detached: true, stdio: 'ignore' }).unref()
+          return
+        } catch {
+          /* try next */
+        }
+      }
+    }
+  }
+  shell.openExternal(url)
+}
 
 // Scopes needed for Calendar + Tasks access
 const SCOPES = [
@@ -116,7 +143,7 @@ export const authService = {
     const { promise: codePromise, cancel } = waitForCode(port)
 
     // Open the browser
-    await shell.openExternal(authUrl)
+    openInBrowser(authUrl)
 
     // Race: auth code vs 5-minute timeout
     let code: string

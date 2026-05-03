@@ -1,10 +1,39 @@
 // Dropbox integration: OAuth2 PKCE, photo index listing, batch downloads
 import { createServer } from 'http'
+import { spawn } from 'child_process'
 import { createHash, randomBytes } from 'crypto'
+import { existsSync } from 'fs'
 import { shell } from 'electron'
 import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { settingsService } from './settings.service'
+
+// On Linux kiosks where the only browser is snap-confined Firefox, xdg-open
+// (which Electron's shell.openExternal uses) often falls through to junk
+// handlers (gedit, etc.) and the OAuth flow never starts. Spawn a known
+// browser binary directly when one exists; fall back to openExternal.
+function openInBrowser(url: string): void {
+  if (process.platform === 'linux') {
+    const candidates = [
+      '/snap/bin/firefox',
+      '/usr/bin/firefox',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/usr/bin/google-chrome',
+    ]
+    for (const bin of candidates) {
+      if (existsSync(bin)) {
+        try {
+          spawn(bin, [url], { detached: true, stdio: 'ignore' }).unref()
+          return
+        } catch {
+          /* try next */
+        }
+      }
+    }
+  }
+  shell.openExternal(url)
+}
 
 // Fixed loopback port — must be registered in the Dropbox app console:
 // Redirect URI → http://127.0.0.1:47391
@@ -65,7 +94,7 @@ export const dropboxService = {
     authUrl.searchParams.set('token_access_type',     'offline')
     authUrl.searchParams.set('redirect_uri',          redirectUri)
 
-    shell.openExternal(authUrl.toString())
+    openInBrowser(authUrl.toString())
     const code = await waitForCode(port)
 
     const body = new URLSearchParams({
