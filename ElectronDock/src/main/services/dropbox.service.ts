@@ -122,7 +122,19 @@ export const dropboxService = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     })
-    if (!res.ok) throw new Error(`Dropbox token refresh failed: ${res.status}`)
+    if (!res.ok) {
+      const rawBody = await res.text().catch(() => '<unreadable>')
+      console.error('[dropbox] token refresh failed', {
+        status: res.status,
+        statusText: res.statusText,
+        appKeyPrefix: appKey.slice(0, 6) + '...',
+        appKeyLen: appKey.length,
+        refreshTokenPrefix: stored.refreshToken.slice(0, 6) + '...',
+        refreshTokenLen: stored.refreshToken.length,
+        responseBody: rawBody,
+      })
+      throw new Error(`Dropbox token refresh failed: ${res.status} — ${rawBody.slice(0, 300)}`)
+    }
     const data   = await res.json() as any
     const expiry = Date.now() + ((data.expires_in ?? 14400) * 1000)
     settingsService.setDropboxTokens(data.access_token, stored.refreshToken, stored.accountId, expiry)
