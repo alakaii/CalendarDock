@@ -190,6 +190,10 @@ const api: CalendarDockAPI = {
     enterFullscreen: ()    => ipcRenderer.invoke('system:enter-fullscreen'),
   },
 
+  log: {
+    forward: (level, args) => ipcRenderer.invoke('log:renderer', { level, args }),
+  },
+
   updates: {
     check:       () => ipcRenderer.invoke('updates:check'),
     install:     () => ipcRenderer.invoke('updates:install'),

@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
 import './index.css'
 import './api-mock' // No-op in Electron; installs mock when running in browser
+import { installRendererLogBridge } from './utils/logBridge'
+
+// Forward renderer console.error / warn / unhandled errors to main → journalctl
+installRendererLogBridge()
 
 const queryClient = new QueryClient({
   defaultOptions: {

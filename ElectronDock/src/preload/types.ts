@@ -491,6 +491,9 @@ export interface CalendarDockAPI {
     setDisplayPower:  (on: boolean) => Promise<void>
     enterFullscreen: () => Promise<void>
   }
+  log: {
+    forward: (level: 'error' | 'warn', args: string[]) => Promise<void>
+  }
   updates: {
     check: () => Promise<UpdateCheckResult>
     install: () => Promise<void>

@@ -4,6 +4,7 @@ import { registerAuthHandlers } from './auth.handler'
 import { registerCalendarHandlers } from './calendar.handler'
 import { registerCamerasHandlers } from './cameras.handler'
 import { registerListsHandlers } from './lists.handler'
+import { registerLogHandlers } from './log.handler'
 import { registerPhotosHandlers } from './photos.handler'
 import { registerRachioHandlers } from './rachio.handler'
 import { registerRingHandlers } from './ring.handler'
@@ -20,6 +21,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   registerCalendarHandlers()
   registerCamerasHandlers()
   registerListsHandlers()
+  registerLogHandlers()
   registerPhotosHandlers()
   registerRachioHandlers()
   registerRingHandlers()
