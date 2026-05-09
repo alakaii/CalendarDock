@@ -26,7 +26,9 @@ export function registerCamerasHandlers(): void {
   ipcMain.handle('cameras:bridge-start', async () => {
     const email    = settingsService.get('wyzeBridgeEmail')    ?? ''
     const password = settingsService.get('wyzeBridgePassword') ?? ''
-    await wyzeBridgeService.start(email, password)
+    const apiId    = settingsService.get('wyzeBridgeApiId')    ?? ''
+    const apiKey   = settingsService.get('wyzeBridgeApiKey')   ?? ''
+    await wyzeBridgeService.start(email, password, apiId, apiKey)
   })
 
   ipcMain.handle('cameras:bridge-stop', async () => {

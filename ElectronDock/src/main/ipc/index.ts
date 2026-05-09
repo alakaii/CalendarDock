@@ -25,7 +25,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   registerRingHandlers()
   registerRinnaiHandlers()
   registerSettingsHandlers(win)
-  registerSystemHandlers()
+  registerSystemHandlers(win)
   registerTasksHandlers()
   registerUpdatesHandlers(win)
   registerWeatherHandlers()

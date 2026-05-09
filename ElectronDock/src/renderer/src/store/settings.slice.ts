@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera } from '../../../preload/types'
+import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot } from '../../../preload/types'
 
 interface SettingsState extends AppSettings {
   loadFromMain: () => Promise<void>
@@ -10,8 +10,12 @@ interface SettingsState extends AppSettings {
   setMealsFontSize: (size: number) => void
   setFamilyName: (name: string) => void
   setThemeMode: (mode: ThemeMode) => void
+  setTimezone: (tz: string) => void
+  setAdditionalTimezones: (zones: string[]) => void
   setMealCell: (key: string, value: string) => void
   setSlideshowSettings: (s: SlideshowSettings) => void
+  setCalendarSwipe: (view: 'week' | 'month', direction: CalendarSwipeDirection) => void
+  setSidebarLayout: (layout: SidebarSlot[]) => void
   setStandbyLayout: (l: StandbyLayout) => void
   setStandbyExitGesture: (g: StandbyExitGesture) => void
   // List mutations (optimistic)
@@ -38,7 +42,7 @@ interface SettingsState extends AppSettings {
   setCameraWakeThreshold:  (threshold: number) => void
   setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => void
   setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => void
-  setWyzeBridgeConfig: (email: string, password: string, host: string) => void
+  setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => void
   setRingSnapshotInterval: (seconds: number) => void
 }
 
@@ -47,6 +51,8 @@ const defaults: AppSettings = {
   calendarPreferences: {},
   calendarOrder: [],
   weather: { location: '', units: 'imperial', apiKey: '' },
+  timezone: '',
+  additionalTimezones: [],
   photoFolderPath: '',
   standbyTimeoutMinutes: 10,
   launchOnStartup: false,
@@ -54,6 +60,18 @@ const defaults: AppSettings = {
   themeMode: 'auto',
   lists: [],
   mealPlan: {},
+  calendarSwipeWeek:  'horizontal',
+  calendarSwipeMonth: 'horizontal',
+  sidebarLayout: [
+    { kind: 'item', pageId: 'calendar'    },
+    { kind: 'item', pageId: 'chores'      },
+    { kind: 'item', pageId: 'meals'       },
+    { kind: 'item', pageId: 'photos'      },
+    { kind: 'item', pageId: 'lists'       },
+    { kind: 'item', pageId: 'cameras'     },
+    { kind: 'item', pageId: 'sprinklers'  },
+    { kind: 'item', pageId: 'waterheater' },
+  ],
   slideshow: {
     durationSec: 8,
     sortOrder: 'filename',
@@ -116,6 +134,8 @@ const defaults: AppSettings = {
   wyzeBridgeEmail:    '',
   wyzeBridgePassword: '',
   wyzeBridgeHost:     'localhost:8554',
+  wyzeBridgeApiId:    '',
+  wyzeBridgeApiKey:   '',
   ringAccountEmail:        '',
   ringSnapshotIntervalSec: 30,
 }
@@ -179,6 +199,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ themeMode: mode })
   },
 
+  setTimezone: (tz) => {
+    window.api.settings.setTimezone(tz)
+    set({ timezone: tz })
+  },
+
+  setAdditionalTimezones: (zones) => {
+    window.api.settings.setAdditionalTimezones(zones)
+    set({ additionalTimezones: zones })
+  },
+
   setMealCell: (key, value) => {
     window.api.settings.setMealCell(key, value)
     set((s) => ({
@@ -191,6 +221,18 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setSlideshowSettings: (s) => {
     window.api.settings.setSlideshowSettings(s)
     set({ slideshow: s })
+  },
+
+  setCalendarSwipe: (view, direction) => {
+    window.api.settings.setCalendarSwipe(view, direction)
+    set(view === 'week'
+      ? { calendarSwipeWeek: direction }
+      : { calendarSwipeMonth: direction })
+  },
+
+  setSidebarLayout: (layout) => {
+    window.api.settings.setSidebarLayout(layout)
+    set({ sidebarLayout: layout })
   },
 
   setStandbyLayout: (l) => {
@@ -322,9 +364,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ activeStandbyMinutes: standbyMinutes, motionSustainSeconds: sustainSeconds, activeHoldMinutes: holdMinutes })
   },
 
-  setWyzeBridgeConfig: (email, password, host) => {
-    window.api.settings.setWyzeBridgeConfig(email, password, host)
-    set({ wyzeBridgeEmail: email, wyzeBridgePassword: password, wyzeBridgeHost: host })
+  setWyzeBridgeConfig: (email, password, host, apiId, apiKey) => {
+    window.api.settings.setWyzeBridgeConfig(email, password, host, apiId, apiKey)
+    set({
+      wyzeBridgeEmail: email, wyzeBridgePassword: password, wyzeBridgeHost: host,
+      wyzeBridgeApiId: apiId, wyzeBridgeApiKey: apiKey,
+    })
   },
 
   setRingSnapshotInterval: (seconds) => {

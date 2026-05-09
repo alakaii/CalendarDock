@@ -1,8 +1,10 @@
 import { useRef, useEffect } from 'react'
 
 interface SwipeOptions {
-  onSwipeLeft?: () => void
+  onSwipeLeft?:  () => void
   onSwipeRight?: () => void
+  onSwipeUp?:    () => void
+  onSwipeDown?:  () => void
   threshold?: number
 }
 
@@ -21,25 +23,33 @@ export function useSwipeGesture(ref: React.RefObject<HTMLElement>, options: Swip
     }
 
     const handleTouchEnd = (e: TouchEvent) => {
-      const dx = e.changedTouches[0].clientX - startX.current
-      const dy = e.changedTouches[0].clientY - startY.current
+      const dx  = e.changedTouches[0].clientX - startX.current
+      const dy  = e.changedTouches[0].clientY - startY.current
+      const adx = Math.abs(dx)
+      const ady = Math.abs(dy)
 
-      // Only fire if horizontal swipe is dominant (more horiz than vertical)
-      if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 1.5) {
-        if (dx < 0) {
-          options.onSwipeLeft?.()
-        } else {
-          options.onSwipeRight?.()
-        }
+      if (adx > threshold && adx > ady * 1.5) {
+        if (dx < 0) options.onSwipeLeft?.()
+        else        options.onSwipeRight?.()
+      } else if (ady > threshold && ady > adx * 1.5) {
+        if (dy < 0) options.onSwipeUp?.()
+        else        options.onSwipeDown?.()
       }
     }
 
     el.addEventListener('touchstart', handleTouchStart, { passive: true })
-    el.addEventListener('touchend', handleTouchEnd, { passive: true })
+    el.addEventListener('touchend',   handleTouchEnd,   { passive: true })
 
     return () => {
       el.removeEventListener('touchstart', handleTouchStart)
-      el.removeEventListener('touchend', handleTouchEnd)
+      el.removeEventListener('touchend',   handleTouchEnd)
     }
-  }, [ref, options.onSwipeLeft, options.onSwipeRight, threshold])
+  }, [
+    ref,
+    options.onSwipeLeft,
+    options.onSwipeRight,
+    options.onSwipeUp,
+    options.onSwipeDown,
+    threshold
+  ])
 }

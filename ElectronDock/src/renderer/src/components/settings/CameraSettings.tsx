@@ -32,12 +32,16 @@ export default function CameraSettings() {
   const storeEmail    = useSettingsStore((s) => s.wyzeBridgeEmail)
   const storePassword = useSettingsStore((s) => s.wyzeBridgePassword)
   const storeHost     = useSettingsStore((s) => s.wyzeBridgeHost)
+  const storeApiId    = useSettingsStore((s) => s.wyzeBridgeApiId)
+  const storeApiKey   = useSettingsStore((s) => s.wyzeBridgeApiKey)
   const setWyzeBridgeConfig = useSettingsStore((s) => s.setWyzeBridgeConfig)
 
   // Local draft state for credentials form
   const [draftEmail,    setDraftEmail]    = useState(storeEmail)
   const [draftPassword, setDraftPassword] = useState(storePassword)
   const [draftHost,     setDraftHost]     = useState(storeHost)
+  const [draftApiId,    setDraftApiId]    = useState(storeApiId)
+  const [draftApiKey,   setDraftApiKey]   = useState(storeApiKey)
   const [credsSaved,    setCredsSaved]    = useState(false)
 
   const [bridgeStatus,  setBridgeStatus]  = useState<BridgeStatus | null>(null)
@@ -58,7 +62,7 @@ export default function CameraSettings() {
   useEffect(() => { checkStatus() }, [checkStatus])
 
   const handleSaveCreds = () => {
-    setWyzeBridgeConfig(draftEmail, draftPassword, draftHost)
+    setWyzeBridgeConfig(draftEmail, draftPassword, draftHost, draftApiId, draftApiKey)
     setCredsSaved(true)
     setTimeout(() => setCredsSaved(false), 2000)
   }
@@ -149,7 +153,11 @@ export default function CameraSettings() {
   const cardStyle = { background: 'var(--card-bg)', border: '1px solid var(--card-border)' }
 
   const credentialsChanged =
-    draftEmail !== storeEmail || draftPassword !== storePassword || draftHost !== storeHost
+    draftEmail    !== storeEmail    ||
+    draftPassword !== storePassword ||
+    draftHost     !== storeHost     ||
+    draftApiId    !== storeApiId    ||
+    draftApiKey   !== storeApiKey
 
   return (
     <div className="space-y-6 max-w-xl">
@@ -191,9 +199,12 @@ export default function CameraSettings() {
         </div>
 
         <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          Wyze Cam v4 doesn't support native RTSP. Enter your Wyze credentials and click{' '}
-          <strong>Start</strong> — the app will run a Docker container that bridges your cameras
-          automatically, including on every app launch.
+          Wyze removed native RTSP from camera firmware, so the bridge synthesizes it from the
+          Wyze cloud. Wyze also deprecated plain email/password login — you must add an
+          <strong> API ID</strong> and <strong>API Key</strong> from{' '}
+          <span className="font-mono">developer-api-console.wyze.com</span>.
+          After updating any field below, click <strong>Remove container</strong> then{' '}
+          <strong>Start bridge</strong> so the new env vars take effect.
         </p>
 
         {/* Credentials */}
@@ -212,6 +223,22 @@ export default function CameraSettings() {
             onChange={(e) => setDraftPassword(e.target.value)}
             placeholder="Wyze password"
             className="w-full px-4 py-2.5 rounded-xl text-sm outline-none min-h-[44px]"
+            style={inputStyle}
+          />
+          <input
+            type="text"
+            value={draftApiId}
+            onChange={(e) => setDraftApiId(e.target.value)}
+            placeholder="Wyze API ID (UUID from developer console)"
+            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none font-mono min-h-[44px]"
+            style={inputStyle}
+          />
+          <input
+            type="password"
+            value={draftApiKey}
+            onChange={(e) => setDraftApiKey(e.target.value)}
+            placeholder="Wyze API Key"
+            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none font-mono min-h-[44px]"
             style={inputStyle}
           />
           <div className="flex gap-2">
@@ -234,7 +261,7 @@ export default function CameraSettings() {
           </div>
           {credentialsChanged && (
             <p className="text-xs" style={{ color: '#f59e0b' }}>
-              Unsaved changes — save then restart the bridge to apply.
+              Unsaved changes — save, remove the container, then start it again to apply.
             </p>
           )}
         </div>

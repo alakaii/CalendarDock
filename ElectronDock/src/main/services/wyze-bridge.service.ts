@@ -20,7 +20,7 @@ export const wyzeBridgeService = {
     }
   },
 
-  async start(email: string, password: string): Promise<void> {
+  async start(email: string, password: string, apiId: string, apiKey: string): Promise<void> {
     const status = await this.checkStatus()
     if (status === 'docker-unavailable') throw new Error('Docker is not installed or not running')
     if (status === 'running') return
@@ -30,16 +30,20 @@ export const wyzeBridgeService = {
       return
     }
 
-    // not-found — create fresh container
-    await execFileAsync('docker', [
+    // not-found — create fresh container.
+    // mrlt8/wyze-bridge requires API_ID + API_KEY since Wyze deprecated plain
+    // email/password login. Get these from https://developer-api-console.wyze.com/
+    const args = [
       'run', '-d', '--restart', 'unless-stopped',
       '-p', '8554:8554',
       '-p', '8888:8888',
       '-e', `WYZE_EMAIL=${email}`,
       '-e', `WYZE_PASSWORD=${password}`,
-      '--name', CONTAINER,
-      'mrlt8/wyze-bridge:latest'
-    ])
+    ]
+    if (apiId)  args.push('-e', `API_ID=${apiId}`)
+    if (apiKey) args.push('-e', `API_KEY=${apiKey}`)
+    args.push('--name', CONTAINER, 'mrlt8/wyze-bridge:latest')
+    await execFileAsync('docker', args)
   },
 
   async stop(): Promise<void> {
@@ -55,12 +59,12 @@ export const wyzeBridgeService = {
   },
 
   /** Called on app launch — silently starts bridge if credentials are stored. */
-  async ensureRunning(email: string, password: string): Promise<void> {
+  async ensureRunning(email: string, password: string, apiId: string, apiKey: string): Promise<void> {
     if (!email || !password) return
     try {
       const status = await this.checkStatus()
       if (status === 'stopped') await execFileAsync('docker', ['start', CONTAINER])
-      if (status === 'not-found') await this.start(email, password)
+      if (status === 'not-found') await this.start(email, password, apiId, apiKey)
     } catch { /* don't crash app if Docker missing */ }
   }
 }

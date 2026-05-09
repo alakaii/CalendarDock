@@ -1,19 +1,37 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  DndContext,
+  useDraggable,
+  useDroppable,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  pointerWithin,
+} from '@dnd-kit/core'
+import type { DragStartEvent, DragMoveEvent, DragEndEvent, DragCancelEvent } from '@dnd-kit/core'
 import { useUIStore } from '../../store/ui.slice'
 import { useSettingsStore } from '../../store/settings.slice'
-import type { AppPage, ThemeMode, RinnaiDevice } from '../../../../preload/types'
+import type { AppPage, ThemeMode, RinnaiDevice, SidebarSlot } from '../../../../preload/types'
 import { getSeasonalGradient } from '../../utils/seasonalGradient'
 
 export const SIDEBAR_IMAGE_KEY = 'sidebarImage'
 
-interface NavItem {
-  id: AppPage
-  label: string
-  icon: React.ReactNode
-}
+// ── Layout constants ─────────────────────────────────────────────────────────
+const SIDEBAR_W       = 130
+const BTN_H           = 80
+const FLYOUT_ROWS     = 5
+const FLYOUT_COLS_MAX = 4
+const FLYOUT_CELL_W   = 124   // matches w-28 (112px) + gap
 
-// ── Icons ──────────────────────────────────────────────────────────────────
+const NAV_PAGES: AppPage[] = [
+  'calendar', 'chores', 'meals', 'photos',
+  'lists', 'cameras', 'sprinklers', 'waterheater',
+]
+
+// ── Icons ────────────────────────────────────────────────────────────────────
 const CalendarIcon = () => (
   <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <rect x="3" y="4" width="18" height="18" rx="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -78,7 +96,6 @@ const AutoThemeIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18" />
   </svg>
 )
-
 const CameraIcon = () => (
   <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <path strokeLinecap="round" strokeLinejoin="round"
@@ -93,47 +110,379 @@ const SprinklerIcon = () => (
 )
 const WaterHeaterIcon = () => (
   <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-    {/* Body */}
     <rect x="3" y="1" width="18" height="19" rx="3" strokeLinecap="round" strokeLinejoin="round" />
-    {/* Water drop */}
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5c0 0-3.5 3.5-3.5 6a3.5 3.5 0 007 0c0-2.5-3.5-6-3.5-6z" />
-    {/* Two indicator dots */}
     <circle cx="9" cy="14" r="1" fill="currentColor" stroke="none" />
     <circle cx="15" cy="14" r="1" fill="currentColor" stroke="none" />
-    {/* Display panel */}
     <rect x="5.5" y="16" width="13" height="3" rx="1" strokeLinecap="round" strokeLinejoin="round" />
     <line x1="7" y1="17.5" x2="17" y2="17.5" strokeLinecap="round" />
-    {/* Feet */}
     <path strokeLinecap="round" d="M8 20v3M16 20v3" />
   </svg>
 )
+const GroupIcon = () => (
+  <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <rect x="3"  y="3"  width="8" height="8" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <rect x="13" y="3"  width="8" height="8" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <rect x="3"  y="13" width="8" height="8" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <rect x="13" y="13" width="8" height="8" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
 
-const navItems: NavItem[] = [
-  { id: 'calendar',    label: 'Calendar',  icon: <CalendarIcon /> },
-  { id: 'chores',      label: 'Chores',    icon: <ChoresIcon /> },
-  { id: 'meals',       label: 'Meals',     icon: <ForkKnifeIcon /> },
-  { id: 'photos',      label: 'Photos',    icon: <PhotosIcon /> },
-  { id: 'lists',       label: 'Lists',     icon: <ListsIcon /> },
-  { id: 'cameras',     label: 'Cameras',   icon: <CameraIcon /> },
-  { id: 'sprinklers',  label: 'Sprinklers', icon: <SprinklerIcon /> },
-  { id: 'waterheater', label: 'Water',     icon: <WaterHeaterIcon /> },
-]
+const PAGE_INFO: Record<AppPage, { label: string; Icon: () => JSX.Element }> = {
+  calendar:    { label: 'Calendar',   Icon: CalendarIcon },
+  chores:      { label: 'Chores',     Icon: ChoresIcon },
+  meals:       { label: 'Meals',      Icon: ForkKnifeIcon },
+  photos:      { label: 'Photos',     Icon: PhotosIcon },
+  lists:       { label: 'Lists',      Icon: ListsIcon },
+  cameras:     { label: 'Wyze Camera', Icon: CameraIcon },
+  sprinklers:  { label: 'Sprinklers', Icon: SprinklerIcon },
+  waterheater: { label: 'Water',      Icon: WaterHeaterIcon },
+  settings:    { label: 'Settings',   Icon: SettingsIcon },
+}
 
-// Theme mode cycle: auto → light → dark → auto
 const THEME_CYCLE: ThemeMode[] = ['auto', 'light', 'dark']
 
+// ── Drag ID encoding ─────────────────────────────────────────────────────────
+type DragId =
+  | { kind: 'top-item';    pageId: AppPage }
+  | { kind: 'top-group';   groupId: string }
+  | { kind: 'flyout-item'; pageId: AppPage; groupId: string }
+
+const TOP_ITEM    = 'ti:'
+const TOP_GROUP   = 'tg:'
+const FLYOUT_ITEM = 'fi:'
+
+function encodeDragId(d: DragId): string {
+  switch (d.kind) {
+    case 'top-item':    return TOP_ITEM    + d.pageId
+    case 'top-group':   return TOP_GROUP   + d.groupId
+    case 'flyout-item': return FLYOUT_ITEM + d.groupId + ':' + d.pageId
+  }
+}
+function decodeDragId(s: string): DragId | null {
+  if (s.startsWith(TOP_ITEM))  return { kind: 'top-item',  pageId: s.slice(TOP_ITEM.length) as AppPage }
+  if (s.startsWith(TOP_GROUP)) return { kind: 'top-group', groupId: s.slice(TOP_GROUP.length) }
+  if (s.startsWith(FLYOUT_ITEM)) {
+    const rest = s.slice(FLYOUT_ITEM.length)
+    const sep  = rest.indexOf(':')
+    if (sep < 0) return null
+    return { kind: 'flyout-item', groupId: rest.slice(0, sep), pageId: rest.slice(sep + 1) as AppPage }
+  }
+  return null
+}
+
+const TOP_DROP_PREFIX = 'top-slot:'
+const topDropId = (uid: string) => TOP_DROP_PREFIX + uid
+const slotUid = (s: SidebarSlot) => s.kind === 'item' ? s.pageId : s.id
+
+// ── Reconciler — handles missing/extra pages so layout always covers everything ──
+function reconcile(layout: SidebarSlot[]): SidebarSlot[] {
+  const seen = new Set<AppPage>()
+  const out:  SidebarSlot[] = []
+  for (const slot of layout) {
+    if (slot.kind === 'item') {
+      if (NAV_PAGES.includes(slot.pageId) && !seen.has(slot.pageId)) {
+        seen.add(slot.pageId)
+        out.push(slot)
+      }
+    } else {
+      const items = slot.items.filter((p) => NAV_PAGES.includes(p) && !seen.has(p))
+      items.forEach((p) => seen.add(p))
+      if (items.length >= 2) {
+        out.push({ kind: 'group', id: slot.id, items })
+      } else if (items.length === 1) {
+        out.push({ kind: 'item', pageId: items[0] })
+      }
+      // empty group → drop
+    }
+  }
+  for (const p of NAV_PAGES) {
+    if (!seen.has(p)) out.push({ kind: 'item', pageId: p })
+  }
+  return out
+}
+
+// ── Drop intent (decided from translated rects during drag) ──────────────────
+type Intent = 'before' | 'merge' | 'after'
+
+function genGroupId(): string {
+  return 'g_' + Math.random().toString(36).slice(2, 10)
+}
+
+function applyDrop(
+  layout: SidebarSlot[],
+  drag: DragId,
+  targetUid: string,
+  intent: Intent
+): SidebarSlot[] {
+  // Build the slot being moved
+  let moving: SidebarSlot | null = null
+  if (drag.kind === 'top-item') {
+    moving = { kind: 'item', pageId: drag.pageId }
+  } else if (drag.kind === 'top-group') {
+    const g = layout.find((s) => s.kind === 'group' && s.id === drag.groupId)
+    moving = g ?? null
+  } else {
+    moving = { kind: 'item', pageId: drag.pageId }
+  }
+  if (!moving) return layout
+
+  // Remove from current position
+  let next: SidebarSlot[] = layout
+  if (drag.kind === 'top-item') {
+    next = layout.filter((s) => !(s.kind === 'item' && s.pageId === drag.pageId))
+  } else if (drag.kind === 'top-group') {
+    next = layout.filter((s) => !(s.kind === 'group' && s.id === drag.groupId))
+  } else {
+    next = layout.map((s) =>
+      s.kind === 'group' && s.id === drag.groupId
+        ? { ...s, items: s.items.filter((p) => p !== drag.pageId) }
+        : s
+    )
+  }
+
+  // Find target after the removal
+  const targetIdx = next.findIndex((s) => slotUid(s) === targetUid)
+  if (targetIdx < 0) {
+    // Dropped on itself or stale — append to end
+    return reconcile([...next, moving])
+  }
+  const target = next[targetIdx]
+
+  if (intent === 'merge') {
+    const merged: AppPage[] = []
+    if (target.kind === 'item') merged.push(target.pageId)
+    else                        merged.push(...target.items)
+    if (moving.kind === 'item') merged.push(moving.pageId)
+    else                        merged.push(...moving.items)
+    const dedup = Array.from(new Set(merged))
+    const groupId = target.kind === 'group' ? target.id
+                  : moving.kind === 'group' ? moving.id
+                  : genGroupId()
+    const newGroup: SidebarSlot = { kind: 'group', id: groupId, items: dedup }
+    next = [...next.slice(0, targetIdx), newGroup, ...next.slice(targetIdx + 1)]
+    return reconcile(next)
+  }
+
+  // before / after
+  const insertAt = targetIdx + (intent === 'after' ? 1 : 0)
+  next = [...next.slice(0, insertAt), moving, ...next.slice(insertAt)]
+  return reconcile(next)
+}
+
+// ── Shared button style ──────────────────────────────────────────────────────
+const btnBase = `
+  flex flex-col items-center justify-center gap-1.5 w-28 h-20 rounded-xl
+  transition-colors duration-150 min-h-[80px] text-xs font-medium relative z-10
+`
+
+// ── Item / group inner content ──────────────────────────────────────────────
+function ItemContents({ pageId, recircActive }: { pageId: AppPage; recircActive: boolean }) {
+  const { Icon, label } = PAGE_INFO[pageId]
+  const showRecircBadge = pageId === 'waterheater' && recircActive
+  return (
+    <>
+      <div className="relative">
+        <Icon />
+        {showRecircBadge && (
+          <span
+            className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-pulse"
+            style={{
+              background: 'radial-gradient(circle at 40% 40%, #fca5a5, #ef4444)',
+              boxShadow: '0 0 6px rgba(239,68,68,0.8)',
+            }}
+          />
+        )}
+      </div>
+      <span>{label}</span>
+    </>
+  )
+}
+
+function GroupContents() {
+  return (
+    <div className="relative">
+      <GroupIcon />
+    </div>
+  )
+}
+
+// ── Top-level draggable+droppable slot ───────────────────────────────────────
+function TopSlot({
+  slot,
+  isActive,
+  recircActive,
+  intent,
+  onClick,
+}: {
+  slot: SidebarSlot
+  isActive: boolean
+  recircActive: boolean
+  intent: Intent | null
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+}) {
+  const dragId: DragId =
+    slot.kind === 'item'
+      ? { kind: 'top-item', pageId: slot.pageId }
+      : { kind: 'top-group', groupId: slot.id }
+
+  const draggable = useDraggable({ id: encodeDragId(dragId) })
+  const droppable = useDroppable({ id: topDropId(slotUid(slot)) })
+
+  const setRef = (el: HTMLElement | null) => {
+    draggable.setNodeRef(el)
+    droppable.setNodeRef(el)
+  }
+
+  return (
+    <div className="relative" style={{ width: '100%' }}>
+      {/* Drop indicator: line above */}
+      {intent === 'before' && (
+        <div className="absolute -top-1 left-2 right-2 h-1 bg-blue-400 rounded-full pointer-events-none z-20" />
+      )}
+
+      <div className="flex justify-center">
+        <button
+          ref={setRef as any}
+          {...draggable.attributes}
+          {...draggable.listeners}
+          onClick={onClick}
+          className={`${btnBase} ${
+            isActive
+              ? 'bg-blue-500 text-white'
+              : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
+          } ${draggable.isDragging ? 'opacity-30' : ''}`}
+          style={{ touchAction: 'none' }}
+          aria-label={slot.kind === 'item' ? PAGE_INFO[slot.pageId].label : 'Group'}
+        >
+          {slot.kind === 'item'
+            ? <ItemContents pageId={slot.pageId} recircActive={recircActive} />
+            : <GroupContents />}
+        </button>
+      </div>
+
+      {/* Drop indicator: ring for merge */}
+      {intent === 'merge' && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 bottom-0 mx-2 my-0 rounded-xl ring-2 ring-blue-400 z-20"
+          style={{ boxShadow: '0 0 12px rgba(96,165,250,0.7)' }}
+        />
+      )}
+
+      {/* Drop indicator: line below */}
+      {intent === 'after' && (
+        <div className="absolute -bottom-1 left-2 right-2 h-1 bg-blue-400 rounded-full pointer-events-none z-20" />
+      )}
+    </div>
+  )
+}
+
+// ── Flyout item (inside the open group) — draggable only ─────────────────────
+function FlyoutItem({
+  pageId,
+  groupId,
+  isActive,
+  recircActive,
+  onClick,
+}: {
+  pageId:       AppPage
+  groupId:      string
+  isActive:     boolean
+  recircActive: boolean
+  onClick:      () => void
+}) {
+  const dragId: DragId = { kind: 'flyout-item', pageId, groupId }
+  const draggable = useDraggable({ id: encodeDragId(dragId) })
+
+  return (
+    <button
+      ref={draggable.setNodeRef as any}
+      {...draggable.attributes}
+      {...draggable.listeners}
+      onClick={onClick}
+      className={`${btnBase} ${
+        isActive
+          ? 'bg-blue-500 text-white'
+          : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-80 hover:opacity-100'
+      } ${draggable.isDragging ? 'opacity-30' : ''}`}
+      style={{ touchAction: 'none' }}
+      aria-label={PAGE_INFO[pageId].label}
+    >
+      <ItemContents pageId={pageId} recircActive={recircActive} />
+    </button>
+  )
+}
+
+// ── Flyout panel ────────────────────────────────────────────────────────────
+function GroupFlyout({
+  group,
+  anchorTop,
+  activePage,
+  recircActive,
+  onItemClick,
+}: {
+  group:        Extract<SidebarSlot, { kind: 'group' }>
+  anchorTop:    number
+  activePage:   AppPage
+  recircActive: boolean
+  onItemClick:  (p: AppPage) => void
+}) {
+  const cols = Math.min(FLYOUT_COLS_MAX, Math.max(1, Math.ceil(group.items.length / FLYOUT_ROWS)))
+
+  return (
+    <div
+      className="absolute z-40 p-2 rounded-r-2xl shadow-2xl"
+      style={{
+        left:       SIDEBAR_W,
+        top:        anchorTop,
+        width:      cols * FLYOUT_CELL_W + 8,
+        background: 'var(--bg-sidebar)',
+        border:     '1px solid var(--border-sidebar)',
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        style={{
+          display:           'grid',
+          gridTemplateRows:  `repeat(${FLYOUT_ROWS}, ${BTN_H}px)`,
+          gridAutoFlow:      'column',
+          gridAutoColumns:   `${FLYOUT_CELL_W}px`,
+          gap:               '4px',
+          justifyItems:      'center',
+        }}
+      >
+        {group.items.map((pageId) => (
+          <FlyoutItem
+            key={pageId}
+            pageId={pageId}
+            groupId={group.id}
+            isActive={activePage === pageId}
+            recircActive={recircActive}
+            onClick={() => onItemClick(pageId)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ──────────────────────────────────────────────────────────
 export default function Sidebar() {
-  const activePage  = useUIStore((s) => s.activePage)
-  const setPage     = useUIStore((s) => s.setPage)
-  const setMode     = useUIStore((s) => s.setMode)
-  const themeMode   = useSettingsStore((s) => s.themeMode)
+  const activePage   = useUIStore((s) => s.activePage)
+  const setPage      = useUIStore((s) => s.setPage)
+  const setMode      = useUIStore((s) => s.setMode)
+  const themeMode    = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
-  const qc          = useQueryClient()
+
+  const sidebarLayoutRaw = useSettingsStore((s) => s.sidebarLayout)
+  const setSidebarLayout = useSettingsStore((s) => s.setSidebarLayout)
+  const layout = useMemo(() => reconcile(sidebarLayoutRaw), [sidebarLayoutRaw])
+
+  const qc            = useQueryClient()
   const rinnaiDevices = qc.getQueryData<RinnaiDevice[]>(['rinnai-devices']) ?? []
   const recircActive  = rinnaiDevices.some((d) => d.recirculationEnabled)
 
-  // ── Sidebar image — display only; upload is managed in Settings → General ──
-  // Listens for a custom event so it updates live when changed in Settings.
+  // ── Sidebar background image (managed in Settings → General) ──
   const [sidebarImage, setSidebarImage] = useState<string | null>(
     () => localStorage.getItem(SIDEBAR_IMAGE_KEY)
   )
@@ -143,133 +492,277 @@ export default function Sidebar() {
     return () => window.removeEventListener('sidebarImageChanged', handler)
   }, [])
 
-  const handleThemeToggle = () => {
-    const idx = THEME_CYCLE.indexOf(themeMode)
-    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]
-    setThemeMode(next)
+  // ── DnD state ──
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [overUid,      setOverUid]      = useState<string | null>(null)
+  const [overIntent,   setOverIntent]   = useState<Intent | null>(null)
+
+  // ── Group flyout state ──
+  const [openGroupId,    setOpenGroupId]    = useState<string | null>(null)
+  const [openGroupTop,   setOpenGroupTop]   = useState<number>(0)
+  const navRef = useRef<HTMLElement | null>(null)
+
+  // Close flyout if its group disappears (e.g. last item removed)
+  useEffect(() => {
+    if (openGroupId && !layout.some((s) => s.kind === 'group' && s.id === openGroupId)) {
+      setOpenGroupId(null)
+    }
+  }, [layout, openGroupId])
+
+  // Click-outside / Escape closes flyout
+  useEffect(() => {
+    if (!openGroupId) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenGroupId(null) }
+    const onPointerDown = (e: PointerEvent) => {
+      const nav = navRef.current
+      if (!nav) return
+      const t = e.target as Node
+      // Click inside the nav (sidebar) is fine. Click on the flyout is fine
+      // (flyout is positioned inside nav so this case is covered).
+      if (nav.contains(t)) return
+      setOpenGroupId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [openGroupId])
+
+  // ── Sensors ──
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  )
+
+  // ── Drag handlers ──
+  const handleDragStart = (e: DragStartEvent) => {
+    setActiveDragId(String(e.active.id))
   }
 
-  const ThemeIcon = themeMode === 'dark' ? MoonIcon
-    : themeMode === 'light' ? SunIcon
-    : AutoThemeIcon
+  const handleDragMove = (e: DragMoveEvent) => {
+    const { over, active } = e
+    if (!over) { setOverUid(null); setOverIntent(null); return }
+    const overId = String(over.id)
+    if (!overId.startsWith(TOP_DROP_PREFIX)) { setOverUid(null); setOverIntent(null); return }
+    const uid = overId.slice(TOP_DROP_PREFIX.length)
 
-  const themeLabel = themeMode === 'dark' ? 'Dark'
-    : themeMode === 'light' ? 'Light'
-    : 'Auto'
+    // Don't show drop indicators on self
+    const drag = decodeDragId(String(active.id))
+    if (drag?.kind === 'top-item' && drag.pageId === uid) {
+      setOverUid(null); setOverIntent(null); return
+    }
+    if (drag?.kind === 'top-group' && drag.groupId === uid) {
+      setOverUid(null); setOverIntent(null); return
+    }
+
+    // Compute intent from dragged rect's center vs over rect's center
+    const overTop    = over.rect.top
+    const overHeight = over.rect.height
+    const draggedTop = active.rect.current.translated?.top
+                    ?? active.rect.current.initial?.top ?? 0
+    const draggedH   = active.rect.current.initial?.height ?? overHeight
+    const draggedCY  = draggedTop + draggedH / 2
+    const overCY     = overTop + overHeight / 2
+    const rel        = (draggedCY - overCY) / overHeight  // -0.5 .. 0.5 roughly
+
+    let intent: Intent
+    if      (rel < -0.25) intent = 'before'
+    else if (rel >  0.25) intent = 'after'
+    else                  intent = 'merge'
+
+    setOverUid(uid)
+    setOverIntent(intent)
+  }
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const drag = decodeDragId(String(e.active.id))
+    const uid  = overUid
+    const intent = overIntent
+    setActiveDragId(null); setOverUid(null); setOverIntent(null)
+    if (!drag || !uid || !intent) return
+    const next = applyDrop(layout, drag, uid, intent)
+    if (next !== layout) setSidebarLayout(next)
+  }
+
+  const handleDragCancel = (_e: DragCancelEvent) => {
+    setActiveDragId(null); setOverUid(null); setOverIntent(null)
+  }
+
+  // ── Click handlers ──
+  const handleGroupClick = (groupId: string, btn: HTMLElement) => {
+    if (openGroupId === groupId) { setOpenGroupId(null); return }
+    const nav = navRef.current
+    if (!nav) return
+    const navRect = nav.getBoundingClientRect()
+    const btnRect = btn.getBoundingClientRect()
+    const top = Math.max(0, btnRect.top - navRect.top - 2 * BTN_H)
+    setOpenGroupTop(top)
+    setOpenGroupId(groupId)
+  }
+
+  // ── Theme toggle ──
+  const handleThemeToggle = () => {
+    const idx = THEME_CYCLE.indexOf(themeMode)
+    setThemeMode(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length])
+  }
+  const ThemeIcon = themeMode === 'dark' ? MoonIcon : themeMode === 'light' ? SunIcon : AutoThemeIcon
+  const themeLabel = themeMode === 'dark' ? 'Dark' : themeMode === 'light' ? 'Light' : 'Auto'
 
   const seasonalGradient = getSeasonalGradient(new Date().getMonth())
+  const openGroup = openGroupId
+    ? layout.find((s) => s.kind === 'group' && s.id === openGroupId) as Extract<SidebarSlot, { kind: 'group' }> | undefined
+    : undefined
 
-  const btnBase = `
-    flex flex-col items-center justify-center gap-1.5 w-28 h-20 rounded-xl
-    transition-colors duration-150 min-h-[80px] text-xs font-medium relative z-10
-  `
+  // ── DragOverlay preview ──
+  let overlayContent: React.ReactNode = null
+  if (activeDragId) {
+    const drag = decodeDragId(activeDragId)
+    if (drag?.kind === 'top-item' || drag?.kind === 'flyout-item') {
+      overlayContent = (
+        <div className={`${btnBase} bg-blue-500/90 text-white shadow-2xl`}>
+          <ItemContents pageId={drag.pageId} recircActive={recircActive} />
+        </div>
+      )
+    } else if (drag?.kind === 'top-group') {
+      overlayContent = (
+        <div className={`${btnBase} bg-[var(--bg-sidebar)] text-[var(--text-sidebar)] shadow-2xl border border-white/10`}>
+          <GroupContents />
+        </div>
+      )
+    }
+  }
 
   return (
-    <nav
-      className="flex flex-col items-center py-3 gap-1 flex-shrink-0 relative overflow-hidden"
-      style={{
-        width: 130,
-        background: sidebarImage ? 'transparent' : 'var(--bg-sidebar)',
-        borderRight: '1px solid var(--border-sidebar)'
-      }}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
-      {/* ── Background image (upload managed in Settings → General) ── */}
-      {sidebarImage && (
-        <>
-          <img
-            src={sidebarImage}
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 w-full h-full object-cover"
-            style={{ zIndex: 0 }}
-          />
-          {/* Dark scrim so icons stay readable over any image */}
+      <nav
+        ref={navRef}
+        className="flex flex-col items-center py-3 gap-1 flex-shrink-0 relative"
+        style={{
+          width: SIDEBAR_W,
+          background: sidebarImage ? 'transparent' : 'var(--bg-sidebar)',
+          borderRight: '1px solid var(--border-sidebar)',
+          // overflow visible so the group flyout can extend to the right
+          overflow: 'visible',
+        }}
+      >
+        {/* ── Background image ── */}
+        {sidebarImage && (
+          <>
+            <img
+              src={sidebarImage}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 w-full h-full object-cover"
+              style={{ zIndex: 0, clipPath: 'inset(0 0 0 0)' }}
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+              style={{ background: 'rgba(0,0,0,0.45)', zIndex: 1 }}
+            />
+          </>
+        )}
+
+        {/* ── Seasonal gradient ── */}
+        {!sidebarImage && (
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"
-            style={{ background: 'rgba(0,0,0,0.45)', zIndex: 1 }}
+            style={{ background: seasonalGradient, zIndex: 1 }}
           />
-        </>
-      )}
+        )}
 
-      {/* ── Seasonal gradient overlay (matches header top-left colour) ── */}
-      {!sidebarImage && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{ background: seasonalGradient, zIndex: 1 }}
-        />
-      )}
+        {/* Main nav (sortable) */}
+        {layout.map((slot) => {
+          const uid = slotUid(slot)
+          const isActive =
+            slot.kind === 'item'
+              ? activePage === slot.pageId
+              : slot.kind === 'group' && slot.id === openGroupId  // group-button highlighted while flyout open
+          const intent = (overUid === uid) ? overIntent : null
 
-      {/* Main nav */}
-      {navItems.map((item) => {
-        const isWater = item.id === 'waterheater'
-        const showRecircBadge = isWater && recircActive
-        return (
-          <button
-            key={item.id}
-            onClick={() => setPage(item.id)}
-            className={`${btnBase} relative ${
-              activePage === item.id
-                ? 'bg-blue-500 text-white'
-                : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
-            }`}
-            aria-label={item.label}
-          >
-            <div className="relative">
-              {item.icon}
-              {showRecircBadge && (
-                <span
-                  className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-pulse"
-                  style={{
-                    background: 'radial-gradient(circle at 40% 40%, #fca5a5, #ef4444)',
-                    boxShadow: '0 0 6px rgba(239,68,68,0.8)',
-                  }}
-                />
-              )}
-            </div>
-            <span>{item.label}</span>
-          </button>
-        )
-      })}
+          return (
+            <TopSlot
+              key={slot.kind === 'item' ? 'i:' + slot.pageId : 'g:' + slot.id}
+              slot={slot}
+              isActive={isActive}
+              recircActive={recircActive}
+              intent={intent}
+              onClick={(e) => {
+                if (slot.kind === 'item') {
+                  setOpenGroupId(null)
+                  setPage(slot.pageId)
+                } else {
+                  handleGroupClick(slot.id, e.currentTarget)
+                }
+              }}
+            />
+          )
+        })}
 
-      {/* Spacer */}
-      <div className="flex-1" />
+        {/* Spacer */}
+        <div className="flex-1" />
 
-      {/* Theme toggle */}
-      <button
-        onClick={handleThemeToggle}
-        className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100`}
-        aria-label={`Theme: ${themeLabel}`}
-        title={`Theme: ${themeLabel} — click to cycle`}
-      >
-        <ThemeIcon />
-        <span>{themeLabel}</span>
-      </button>
+        {/* Theme toggle */}
+        <button
+          onClick={handleThemeToggle}
+          className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100`}
+          aria-label={`Theme: ${themeLabel}`}
+          title={`Theme: ${themeLabel} — click to cycle`}
+        >
+          <ThemeIcon />
+          <span>{themeLabel}</span>
+        </button>
 
-      {/* Sleep (standby) */}
-      <button
-        onClick={() => setMode('standby')}
-        className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-60 hover:opacity-100`}
-        aria-label="Sleep / Standby"
-      >
-        <ZzzIcon />
-        <span>Sleep</span>
-      </button>
+        {/* Sleep */}
+        <button
+          onClick={() => setMode('standby')}
+          className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-60 hover:opacity-100`}
+          aria-label="Sleep / Standby"
+        >
+          <ZzzIcon />
+          <span>Sleep</span>
+        </button>
 
-      {/* Settings — at very bottom */}
-      <button
-        onClick={() => setPage('settings')}
-        className={`${btnBase} ${
-          activePage === 'settings'
-            ? 'bg-blue-500 text-white'
-            : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
-        }`}
-        aria-label="Settings"
-      >
-        <SettingsIcon />
-        <span>Settings</span>
-      </button>
-    </nav>
+        {/* Settings */}
+        <button
+          onClick={() => { setOpenGroupId(null); setPage('settings') }}
+          className={`${btnBase} ${
+            activePage === 'settings'
+              ? 'bg-blue-500 text-white'
+              : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
+          }`}
+          aria-label="Settings"
+        >
+          <SettingsIcon />
+          <span>Settings</span>
+        </button>
+
+        {/* Group flyout (rendered inside nav so click-outside detection works) */}
+        {openGroup && (
+          <GroupFlyout
+            group={openGroup}
+            anchorTop={openGroupTop}
+            activePage={activePage}
+            recircActive={recircActive}
+            onItemClick={(p) => {
+              setOpenGroupId(null)
+              setPage(p)
+            }}
+          />
+        )}
+      </nav>
+
+      <DragOverlay dropAnimation={null}>{overlayContent}</DragOverlay>
+    </DndContext>
   )
 }

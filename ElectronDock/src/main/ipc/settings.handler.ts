@@ -1,7 +1,7 @@
 import { ipcMain, dialog, app, BrowserWindow } from 'electron'
 import { settingsService } from '../services/settings.service'
 import { photosService } from '../services/photos.service'
-import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera } from '../../preload/types'
+import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot } from '../../preload/types'
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
   ipcMain.handle('settings:get-all', async () => {
@@ -59,6 +59,20 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
     }
   )
 
+  ipcMain.handle(
+    'settings:set-timezone',
+    async (_event, { tz }: { tz: string }) => {
+      settingsService.setTimezone(tz)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-additional-timezones',
+    async (_event, { zones }: { zones: string[] }) => {
+      settingsService.setAdditionalTimezones(zones)
+    }
+  )
+
   ipcMain.handle('settings:browse-folder-dialog', async () => {
     const result = await dialog.showOpenDialog(win, {
       properties: ['openDirectory'],
@@ -108,6 +122,20 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
     'settings:set-slideshow',
     async (_event, s: SlideshowSettings) => {
       settingsService.setSlideshowSettings(s)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-calendar-swipe',
+    async (_event, { view, direction }: { view: 'week' | 'month'; direction: CalendarSwipeDirection }) => {
+      settingsService.setCalendarSwipe(view, direction)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-sidebar-layout',
+    async (_event, { layout }: { layout: SidebarSlot[] }) => {
+      settingsService.setSidebarLayout(layout)
     }
   )
 
@@ -253,8 +281,8 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
 
   ipcMain.handle(
     'settings:set-wyze-bridge-config',
-    async (_event, { email, password, host }: { email: string; password: string; host: string }) => {
-      settingsService.setWyzeBridgeConfig(email, password, host)
+    async (_event, { email, password, host, apiId, apiKey }: { email: string; password: string; host: string; apiId: string; apiKey: string }) => {
+      settingsService.setWyzeBridgeConfig(email, password, host, apiId, apiKey)
     }
   )
 

@@ -29,6 +29,10 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-weather-units', { units }),
     setWeatherApiKey: (apiKey) =>
       ipcRenderer.invoke('settings:set-weather-api-key', { apiKey }),
+    setTimezone: (tz) =>
+      ipcRenderer.invoke('settings:set-timezone', { tz }),
+    setAdditionalTimezones: (zones) =>
+      ipcRenderer.invoke('settings:set-additional-timezones', { zones }),
     setStandbyTimeout: (minutes) =>
       ipcRenderer.invoke('settings:set-standby-timeout', { minutes }),
     browseFolderDialog: () => ipcRenderer.invoke('settings:browse-folder-dialog'),
@@ -44,6 +48,10 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-meal-cell', { key, value }),
     setSlideshowSettings: (s) =>
       ipcRenderer.invoke('settings:set-slideshow', s),
+    setCalendarSwipe: (view, direction) =>
+      ipcRenderer.invoke('settings:set-calendar-swipe', { view, direction }),
+    setSidebarLayout: (layout) =>
+      ipcRenderer.invoke('settings:set-sidebar-layout', { layout }),
     setStandbyLayout: (l) =>
       ipcRenderer.invoke('settings:set-standby-layout', l),
     setStandbyExitGesture: (g) =>
@@ -84,8 +92,8 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-meals-font-size', { size }),
     setFridgeGoogleTaskList: (accountId, taskListId) =>
       ipcRenderer.invoke('settings:set-fridge-google-task-list', { accountId, taskListId }),
-    setWyzeBridgeConfig: (email, password, host) =>
-      ipcRenderer.invoke('settings:set-wyze-bridge-config', { email, password, host }),
+    setWyzeBridgeConfig: (email, password, host, apiId, apiKey) =>
+      ipcRenderer.invoke('settings:set-wyze-bridge-config', { email, password, host, apiId, apiKey }),
     setRingSnapshotInterval: (seconds) =>
       ipcRenderer.invoke('settings:set-ring-snapshot-interval', { seconds }),
   },
@@ -178,7 +186,8 @@ const api: CalendarDockAPI = {
   },
 
   system: {
-    setDisplayPower: (on) => ipcRenderer.invoke('system:set-display-power', { on }),
+    setDisplayPower:  (on) => ipcRenderer.invoke('system:set-display-power', { on }),
+    enterFullscreen: ()    => ipcRenderer.invoke('system:enter-fullscreen'),
   },
 
   updates: {

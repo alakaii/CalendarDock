@@ -1,7 +1,7 @@
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
 import { safeStorage } from 'electron'
-import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera } from '../../preload/types'
+import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot } from '../../preload/types'
 
 type StoredSettings = AppSettings & {
   // Accounts with encrypted refresh tokens (base64 encoded, DPAPI encrypted)
@@ -34,6 +34,8 @@ const defaults: StoredSettings = {
     units: 'imperial',
     apiKey: ''
   },
+  timezone: '',
+  additionalTimezones: [],
   photoFolderPath: '',
   standbyTimeoutMinutes: 10,
   launchOnStartup: false,
@@ -43,6 +45,18 @@ const defaults: StoredSettings = {
     { id: 'chores', name: 'Chores', items: [] }
   ],
   mealPlan: {},
+  calendarSwipeWeek:  'horizontal' as const,
+  calendarSwipeMonth: 'horizontal' as const,
+  sidebarLayout: [
+    { kind: 'item', pageId: 'calendar'    },
+    { kind: 'item', pageId: 'chores'      },
+    { kind: 'item', pageId: 'meals'       },
+    { kind: 'item', pageId: 'photos'      },
+    { kind: 'item', pageId: 'lists'       },
+    { kind: 'item', pageId: 'cameras'     },
+    { kind: 'item', pageId: 'sprinklers'  },
+    { kind: 'item', pageId: 'waterheater' },
+  ] as SidebarSlot[],
   slideshow: {
     durationSec: 8,
     sortOrder: 'filename' as const,
@@ -105,6 +119,8 @@ const defaults: StoredSettings = {
   wyzeBridgeEmail:    '',
   wyzeBridgePassword: '',
   wyzeBridgeHost:     'localhost:8554',
+  wyzeBridgeApiId:    '',
+  wyzeBridgeApiKey:   '',
   ringEncryptedRefreshToken: '',
   ringAccountEmail:          '',
   ringSnapshotIntervalSec:   30,
@@ -161,6 +177,14 @@ export const settingsService = {
   setWeatherApiKey(apiKey: string): void {
     const weather = store.get('weather')
     store.set('weather', { ...weather, apiKey })
+  },
+
+  setTimezone(tz: string): void {
+    store.set('timezone', tz)
+  },
+
+  setAdditionalTimezones(zones: string[]): void {
+    store.set('additionalTimezones', zones)
   },
 
   setStandbyTimeout(minutes: number): void {
@@ -239,6 +263,14 @@ export const settingsService = {
       l.id === listId ? { ...l, items: l.items.filter((it) => it.id !== itemId) } : l
     )
     store.set('lists', updated)
+  },
+
+  setCalendarSwipe(view: 'week' | 'month', direction: CalendarSwipeDirection): void {
+    store.set(view === 'week' ? 'calendarSwipeWeek' : 'calendarSwipeMonth', direction)
+  },
+
+  setSidebarLayout(layout: SidebarSlot[]): void {
+    store.set('sidebarLayout', layout)
   },
 
   setSlideshowSettings(s: SlideshowSettings): void {
@@ -393,10 +425,12 @@ export const settingsService = {
     store.set('activeHoldMinutes',     holdMinutes)
   },
 
-  setWyzeBridgeConfig(email: string, password: string, host: string): void {
+  setWyzeBridgeConfig(email: string, password: string, host: string, apiId: string, apiKey: string): void {
     store.set('wyzeBridgeEmail',    email)
     store.set('wyzeBridgePassword', password)
     store.set('wyzeBridgeHost',     host)
+    store.set('wyzeBridgeApiId',    apiId)
+    store.set('wyzeBridgeApiKey',   apiKey)
   },
 
   // ---- Ring ----

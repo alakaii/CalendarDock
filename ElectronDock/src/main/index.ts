@@ -86,9 +86,11 @@ if (!gotLock) {
     registerIpcHandlers(win)
 
     // Auto-start Wyze bridge if credentials are configured
-    const wyzeEmail = settingsService.get('wyzeBridgeEmail') ?? ''
-    const wyzePass  = settingsService.get('wyzeBridgePassword') ?? ''
-    wyzeBridgeService.ensureRunning(wyzeEmail, wyzePass).catch(() => {})
+    const wyzeEmail  = settingsService.get('wyzeBridgeEmail')    ?? ''
+    const wyzePass   = settingsService.get('wyzeBridgePassword') ?? ''
+    const wyzeApiId  = settingsService.get('wyzeBridgeApiId')    ?? ''
+    const wyzeApiKey = settingsService.get('wyzeBridgeApiKey')   ?? ''
+    wyzeBridgeService.ensureRunning(wyzeEmail, wyzePass, wyzeApiId, wyzeApiKey).catch(() => {})
 
     // Revive Ring connection if a refresh token is stored
     ringService.ensureInitialized().catch(() => {})

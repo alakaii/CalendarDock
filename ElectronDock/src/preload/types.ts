@@ -58,6 +58,16 @@ export interface WeatherConfig {
   apiKey: string
 }
 
+// ---- Calendar view settings ----
+
+export type CalendarSwipeDirection = 'horizontal' | 'vertical' | 'both'
+
+// ---- Sidebar layout ----
+
+export type SidebarSlot =
+  | { kind: 'item';  pageId: AppPage }
+  | { kind: 'group'; id: string; items: AppPage[] }
+
 // ---- Slideshow ----
 
 export type SlideshowSortOrder = 'random' | 'filename' | 'date'
@@ -261,6 +271,10 @@ export interface AppSettings {
   calendarPreferences: Record<string, CalendarPreference>
   calendarOrder: string[]
   weather: WeatherConfig
+  /** IANA timezone (e.g. 'America/New_York'). Empty string = system local. */
+  timezone: string
+  /** Extra clocks shown when the user taps the header time. */
+  additionalTimezones: string[]
   photoFolderPath: string
   standbyTimeoutMinutes: number
   launchOnStartup: boolean
@@ -268,6 +282,11 @@ export interface AppSettings {
   themeMode: ThemeMode
   lists: AppList[]
   mealPlan: MealPlan
+  // Calendar view
+  calendarSwipeWeek:   CalendarSwipeDirection
+  calendarSwipeMonth:  CalendarSwipeDirection
+  // Sidebar nav layout (drag-to-reorder, drop-to-group)
+  sidebarLayout:       SidebarSlot[]
   slideshow:           SlideshowSettings
   standbyLayout:       StandbyLayout
   standbyExitGesture:  StandbyExitGesture
@@ -310,6 +329,8 @@ export interface AppSettings {
   wyzeBridgeEmail:    string
   wyzeBridgePassword: string
   wyzeBridgeHost:     string
+  wyzeBridgeApiId:    string
+  wyzeBridgeApiKey:   string
   // Ring (refresh token stored encrypted in main process — not in this object)
   ringAccountEmail:        string
   /** How often (seconds) to refresh each Ring snapshot. Min 5. */
@@ -362,6 +383,8 @@ export interface CalendarDockAPI {
     setWeatherLocation: (location: string) => Promise<void>
     setWeatherUnits: (units: 'imperial' | 'metric') => Promise<void>
     setWeatherApiKey: (apiKey: string) => Promise<void>
+    setTimezone: (tz: string) => Promise<void>
+    setAdditionalTimezones: (zones: string[]) => Promise<void>
     setStandbyTimeout: (minutes: number) => Promise<void>
     browseFolderDialog: () => Promise<string | null>
     setPhotoFolder: (folderPath: string) => Promise<void>
@@ -369,6 +392,8 @@ export interface CalendarDockAPI {
     setThemeMode: (mode: ThemeMode) => Promise<void>
     setLaunchOnStartup: (enabled: boolean) => Promise<void>
     setMealCell: (key: string, value: string) => Promise<void>
+    setCalendarSwipe: (view: 'week' | 'month', direction: CalendarSwipeDirection) => Promise<void>
+    setSidebarLayout: (layout: SidebarSlot[]) => Promise<void>
     setSlideshowSettings: (s: SlideshowSettings) => Promise<void>
     setStandbyLayout:      (l: StandbyLayout) => Promise<void>
     setStandbyExitGesture: (g: StandbyExitGesture) => Promise<void>
@@ -388,7 +413,7 @@ export interface CalendarDockAPI {
     setCameraWakeThreshold:  (threshold: number) => Promise<void>
     setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => Promise<void>
     setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => Promise<void>
-    setWyzeBridgeConfig: (email: string, password: string, host: string) => Promise<void>
+    setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => Promise<void>
     setRingSnapshotInterval: (seconds: number) => Promise<void>
   }
   dropbox: {
@@ -463,7 +488,8 @@ export interface CalendarDockAPI {
     fetchForecast: () => Promise<WeatherForecastDay[]>
   }
   system: {
-    setDisplayPower: (on: boolean) => Promise<void>
+    setDisplayPower:  (on: boolean) => Promise<void>
+    enterFullscreen: () => Promise<void>
   }
   updates: {
     check: () => Promise<UpdateCheckResult>

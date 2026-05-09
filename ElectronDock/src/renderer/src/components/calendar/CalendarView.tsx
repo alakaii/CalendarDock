@@ -30,6 +30,8 @@ export default function CalendarView() {
   const [slotPx, setSlotPx]               = useState<number | null>(null)
 
   const calendarPreferences  = useSettingsStore((s) => s.calendarPreferences)
+  const calendarSwipeWeek    = useSettingsStore((s) => s.calendarSwipeWeek)
+  const calendarSwipeMonth   = useSettingsStore((s) => s.calendarSwipeMonth)
   const chipHiddenIds        = useUIStore((s) => s.chipHiddenIds)
   const setCalendarDate      = useUIStore((s) => s.setCalendarDate)
   const setCalendarView      = useUIStore((s) => s.setCalendarView)
@@ -143,9 +145,15 @@ export default function CalendarView() {
     }
   }, [handleNavigate, handleViewChange])
 
+  const swipeMode    = view === 'timeGridWeek' ? calendarSwipeWeek : calendarSwipeMonth
+  const horizontalOn = swipeMode === 'horizontal' || swipeMode === 'both'
+  const verticalOn   = swipeMode === 'vertical'   || swipeMode === 'both'
+
   useSwipeGesture(containerRef, {
-    onSwipeLeft:  () => handleNavigate('next'),
-    onSwipeRight: () => handleNavigate('prev')
+    onSwipeLeft:  horizontalOn ? () => handleNavigate('next') : undefined,
+    onSwipeRight: horizontalOn ? () => handleNavigate('prev') : undefined,
+    onSwipeUp:    verticalOn   ? () => handleNavigate('next') : undefined,
+    onSwipeDown:  verticalOn   ? () => handleNavigate('prev') : undefined,
   })
 
   const handleEventClick = (arg: EventClickArg) => {

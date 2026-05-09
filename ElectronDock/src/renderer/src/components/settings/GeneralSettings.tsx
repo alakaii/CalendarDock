@@ -114,6 +114,23 @@ export default function GeneralSettings() {
         </div>
       </section>
 
+      {/* Display */}
+      <section className="space-y-2">
+        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+          Display
+        </label>
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Restore fullscreen / kiosk mode if the window has been resized or escaped.
+        </p>
+        <button
+          onClick={() => window.api.system.enterFullscreen()}
+          className="px-4 py-2 rounded-lg text-sm font-semibold min-h-[44px]"
+          style={{ background: '#3b82f6', color: '#fff' }}
+        >
+          Return to Fullscreen
+        </button>
+      </section>
+
       {/* Header image */}
       <section className="space-y-2">
         <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>

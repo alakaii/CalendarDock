@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import AccountsSettings from '../settings/AccountsSettings'
 import CalendarSelector from '../settings/CalendarSelector'
+import CalendarSettings from '../settings/CalendarSettings'
+import ClocksSettings from '../settings/ClocksSettings'
 import WeatherSettings from '../settings/WeatherSettings'
 import PhotoSettings from '../settings/PhotoSettings'
 import StandbySettings from '../settings/StandbySettings'
@@ -14,13 +16,15 @@ import RingSettings from '../settings/RingSettings'
 import UpdatesSettings from '../settings/UpdatesSettings'
 
 type Section =
-  | 'general' | 'accounts' | 'calendars' | 'weather' | 'photos' | 'standby'
+  | 'general' | 'accounts' | 'calendar' | 'calendars' | 'clocks' | 'weather' | 'photos' | 'standby'
   | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras' | 'ring' | 'updates'
 
 const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'general',   label: 'General',     icon: '⚙️' },
   { id: 'accounts',  label: 'Accounts',    icon: '👤' },
+  { id: 'calendar',  label: 'Calendar',    icon: '👆' },
   { id: 'calendars', label: 'Calendars',   icon: '📅' },
+  { id: 'clocks',    label: 'Clocks',      icon: '🕒' },
   { id: 'weather',   label: 'Weather',     icon: '🌤' },
   { id: 'photos',    label: 'Photos',      icon: '🖼' },
   { id: 'standby',   label: 'Standby',     icon: '💤' },
@@ -28,7 +32,7 @@ const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'chores',    label: 'Chores',      icon: '✅' },
   { id: 'meals',     label: 'Meals',       icon: '🍽' },
   { id: 'lists',     label: 'Lists',       icon: '📋' },
-  { id: 'cameras',   label: 'Cameras',     icon: '📹' },
+  { id: 'cameras',   label: 'Wyze Camera', icon: '📹' },
   { id: 'ring',      label: 'Ring',        icon: '🔔' },
   { id: 'updates',   label: 'Updates',     icon: '⬆️' },
 ]
@@ -70,7 +74,9 @@ export default function SettingsPage() {
       >
         {section === 'general'   && <GeneralSettings />}
         {section === 'accounts'  && <AccountsSettings />}
+        {section === 'calendar'  && <CalendarSettings />}
         {section === 'calendars' && <CalendarSelector />}
+        {section === 'clocks'    && <ClocksSettings />}
         {section === 'weather'   && <WeatherSettings />}
         {section === 'photos'    && <PhotoSettings />}
         {section === 'standby'   && <StandbySettings />}
