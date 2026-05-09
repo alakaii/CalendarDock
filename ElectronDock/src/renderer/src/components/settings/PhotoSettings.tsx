@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
 import { TouchButton } from '../shared/TouchButton'
 import type { SlideshowSortOrder, SlideshowTransition } from '../../../../preload/types'
@@ -52,10 +52,21 @@ export default function PhotoSettings() {
     loadSettings()
   }
 
-  const handleCountSave = () => {
-    window.api.dropbox.setConfig({ photoCount })
-    loadSettings()
-  }
+  // Touch on Wayland sometimes misses onTouchEnd if the finger releases off
+  // the slider track, so we don't rely on that — debounce-save whenever the
+  // value changes and the user has been still for 250ms.
+  const photoCountFirstRun = useRef(true)
+  useEffect(() => {
+    if (photoCountFirstRun.current) {
+      photoCountFirstRun.current = false
+      return
+    }
+    const id = setTimeout(() => {
+      window.api.dropbox.setConfig({ photoCount })
+      loadSettings()
+    }, 250)
+    return () => clearTimeout(id)
+  }, [photoCount, loadSettings])
 
   const handleSyncNow = async () => {
     setSyncing(true)
@@ -236,8 +247,6 @@ export default function PhotoSettings() {
               type="range" min={50} max={500} step={50}
               value={photoCount}
               onChange={(e) => setPhotoCount(Number(e.target.value))}
-              onMouseUp={handleCountSave}
-              onTouchEnd={handleCountSave}
               className="w-full h-2 rounded-full appearance-none cursor-pointer"
               style={{ accentColor: '#3b82f6' }}
             />
