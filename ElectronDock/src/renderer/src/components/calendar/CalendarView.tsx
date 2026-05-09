@@ -10,7 +10,7 @@ import { eventColor } from '../../utils/eventColors'
 import { useCalendarEvents } from '../../hooks/useCalendarEvents'
 import { useSettingsStore } from '../../store/settings.slice'
 import { useUIStore } from '../../store/ui.slice'
-import { useSwipeGesture } from '../../hooks/useSwipeGesture'
+import { useDragSwipe, type DragAxis } from '../../hooks/useDragSwipe'
 import { calendarBridge } from '../../bridge/calendarBridge'
 import EventPopover from './EventPopover'
 import AddEventModal from './AddEventModal'
@@ -153,11 +153,76 @@ export default function CalendarView() {
   const horizontalOn = swipeMode === 'horizontal' || swipeMode === 'both'
   const verticalOn   = swipeMode === 'vertical'   || swipeMode === 'both'
 
-  useSwipeGesture(containerRef, {
-    onSwipeLeft:  horizontalOn ? () => handleNavigate('next') : undefined,
-    onSwipeRight: horizontalOn ? () => handleNavigate('prev') : undefined,
-    onSwipeUp:    verticalOn   ? () => handleNavigate('next') : undefined,
-    onSwipeDown:  verticalOn   ? () => handleNavigate('prev') : undefined,
+  const allowedAxes = useMemo<DragAxis[]>(() => {
+    const out: DragAxis[] = []
+    if (horizontalOn) out.push('x')
+    if (verticalOn)   out.push('y')
+    return out
+  }, [horizontalOn, verticalOn])
+
+  // ── Live drag-to-navigate state machine ──
+  // The user drags the calendar wrapper around with their finger; on release,
+  // we either (a) animate it off-screen + swap the period + slide back in
+  // from the other side, or (b) spring back to center.
+  const [offset, setOffset]               = useState({ x: 0, y: 0 })
+  const [transitioning, setTransitioning] = useState(false)
+  const transitioningRef                  = useRef(false)
+  transitioningRef.current = transitioning
+
+  const SLIDE_DURATION_MS = 250
+
+  const animateBackToZero = () => {
+    setTransitioning(true)
+    setOffset({ x: 0, y: 0 })
+    setTimeout(() => setTransitioning(false), SLIDE_DURATION_MS)
+  }
+
+  const commitSlide = (axis: DragAxis, dir: -1 | 1) => {
+    const W = containerRef.current?.clientWidth  ?? window.innerWidth
+    const H = containerRef.current?.clientHeight ?? window.innerHeight
+
+    // Phase 1: animate off-screen in the direction the user swiped.
+    setTransitioning(true)
+    setOffset({
+      x: axis === 'x' ? dir * W : 0,
+      y: axis === 'y' ? dir * H : 0,
+    })
+
+    // Phase 2 (after the slide-out completes):
+    setTimeout(() => {
+      // dir = -1 → swiped left/up = next period; dir = +1 → right/down = prev.
+      handleNavigate(dir < 0 ? 'next' : 'prev')
+
+      // Snap to the opposite side instantly (no transition).
+      setTransitioning(false)
+      setOffset({
+        x: axis === 'x' ? -dir * W : 0,
+        y: axis === 'y' ? -dir * H : 0,
+      })
+
+      // Phase 3 (next paint): animate back to 0 from the opposite side.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTransitioning(true)
+          setOffset({ x: 0, y: 0 })
+          setTimeout(() => setTransitioning(false), SLIDE_DURATION_MS)
+        })
+      })
+    }, SLIDE_DURATION_MS)
+  }
+
+  useDragSwipe(containerRef, {
+    enabled: allowedAxes.length > 0,
+    axes:    allowedAxes,
+    onDragMove: (dx, dy) => {
+      if (transitioningRef.current) return
+      setOffset({ x: dx, y: dy })
+    },
+    onDragEnd: (_dx, _dy, axis, dir) => {
+      if (transitioningRef.current) return
+      if (dir === 0) animateBackToZero()
+      else           commitSlide(axis, dir)
+    },
   })
 
   const handleEventClick = (arg: EventClickArg) => {
@@ -184,7 +249,15 @@ export default function CalendarView() {
 
       {/* FullCalendar — fills all remaining height */}
       <div ref={containerRef} className="flex-1 relative overflow-hidden">
-        <div ref={fcWrapRef} className="absolute inset-0">
+        <div
+          ref={fcWrapRef}
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px)`,
+            transition: transitioning ? `transform ${SLIDE_DURATION_MS}ms ease-out` : 'none',
+            willChange: 'transform',
+          }}
+        >
           {/* Force exact slot height so all slots fit without scrolling.
               overflow:hidden kills the reserved scrollbar gutter. */}
           {slotPx !== null && (
