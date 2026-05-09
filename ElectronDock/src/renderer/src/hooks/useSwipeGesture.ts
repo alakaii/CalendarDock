@@ -37,12 +37,16 @@ export function useSwipeGesture(ref: React.RefObject<HTMLElement>, options: Swip
       }
     }
 
-    el.addEventListener('touchstart', handleTouchStart, { passive: true })
-    el.addEventListener('touchend',   handleTouchEnd,   { passive: true })
+    // capture: true so the gesture wins over inner consumers (e.g. FullCalendar's
+    // interaction plugin, which otherwise stopPropagation's touch events on the
+    // grid before they bubble up to the swipe container).
+    const opts: AddEventListenerOptions = { passive: true, capture: true }
+    el.addEventListener('touchstart', handleTouchStart, opts)
+    el.addEventListener('touchend',   handleTouchEnd,   opts)
 
     return () => {
-      el.removeEventListener('touchstart', handleTouchStart)
-      el.removeEventListener('touchend',   handleTouchEnd)
+      el.removeEventListener('touchstart', handleTouchStart, opts)
+      el.removeEventListener('touchend',   handleTouchEnd,   opts)
     }
   }, [
     ref,

@@ -171,9 +171,19 @@ function decodeDragId(s: string): DragId | null {
   return null
 }
 
-const TOP_DROP_PREFIX = 'top-slot:'
-const topDropId = (uid: string) => TOP_DROP_PREFIX + uid
+const TOP_DROP_PREFIX    = 'top-slot:'
+const FLYOUT_DROP_PREFIX = 'flyout-slot:'
+const topDropId    = (uid: string) => TOP_DROP_PREFIX + uid
+const flyoutDropId = (groupId: string, pageId: AppPage) => FLYOUT_DROP_PREFIX + groupId + ':' + pageId
 const slotUid = (s: SidebarSlot) => s.kind === 'item' ? s.pageId : s.id
+
+function decodeFlyoutDropId(id: string): { groupId: string; pageId: AppPage } | null {
+  if (!id.startsWith(FLYOUT_DROP_PREFIX)) return null
+  const rest = id.slice(FLYOUT_DROP_PREFIX.length)
+  const sep = rest.indexOf(':')
+  if (sep < 0) return null
+  return { groupId: rest.slice(0, sep), pageId: rest.slice(sep + 1) as AppPage }
+}
 
 // ── Reconciler — handles missing/extra pages so layout always covers everything ──
 function reconcile(layout: SidebarSlot[]): SidebarSlot[] {
@@ -267,6 +277,59 @@ function applyDrop(
   // before / after
   const insertAt = targetIdx + (intent === 'after' ? 1 : 0)
   next = [...next.slice(0, insertAt), moving, ...next.slice(insertAt)]
+  return reconcile(next)
+}
+
+/**
+ * Drop a dragged tile onto a specific slot inside an open flyout. Lets the
+ * user reorder within a group, move a tile from one group's flyout to
+ * another group, or drag a top-level item / group into a group's flyout.
+ */
+function applyDropToFlyout(
+  layout: SidebarSlot[],
+  drag: DragId,
+  targetGroupId: string,
+  targetPageId: AppPage,
+  intent: 'before' | 'after',
+): SidebarSlot[] {
+  // Pages being added (single page for items / flyout-items, all of a group's pages for top-group)
+  let pagesToAdd: AppPage[] = []
+  if (drag.kind === 'top-item') {
+    pagesToAdd = [drag.pageId]
+  } else if (drag.kind === 'flyout-item') {
+    pagesToAdd = [drag.pageId]
+  } else if (drag.kind === 'top-group') {
+    const g = layout.find((s) => s.kind === 'group' && s.id === drag.groupId)
+    if (g?.kind === 'group') pagesToAdd = g.items
+  }
+  if (pagesToAdd.length === 0) return layout
+
+  // Remove from source
+  let next: SidebarSlot[]
+  if (drag.kind === 'top-item') {
+    next = layout.filter((s) => !(s.kind === 'item' && s.pageId === drag.pageId))
+  } else if (drag.kind === 'top-group') {
+    next = layout.filter((s) => !(s.kind === 'group' && s.id === drag.groupId))
+  } else {
+    next = layout.map((s) =>
+      s.kind === 'group' && s.id === drag.groupId
+        ? { ...s, items: s.items.filter((p) => p !== drag.pageId) }
+        : s
+    )
+  }
+
+  // Insert into target group at the position relative to targetPageId
+  next = next.map((s) => {
+    if (s.kind !== 'group' || s.id !== targetGroupId) return s
+    const filtered = s.items.filter((p) => !pagesToAdd.includes(p))
+    const idx = filtered.indexOf(targetPageId)
+    const insertAt = idx >= 0 ? idx + (intent === 'after' ? 1 : 0) : filtered.length
+    return {
+      ...s,
+      items: [...filtered.slice(0, insertAt), ...pagesToAdd, ...filtered.slice(insertAt)],
+    }
+  })
+
   return reconcile(next)
 }
 
@@ -377,39 +440,55 @@ function TopSlot({
   )
 }
 
-// ── Flyout item (inside the open group) — draggable only ─────────────────────
+// ── Flyout item (inside the open group) — both draggable and droppable ──────
 function FlyoutItem({
   pageId,
   groupId,
   isActive,
   recircActive,
+  intent,
   onClick,
 }: {
   pageId:       AppPage
   groupId:      string
   isActive:     boolean
   recircActive: boolean
+  intent:       'before' | 'after' | null
   onClick:      () => void
 }) {
   const dragId: DragId = { kind: 'flyout-item', pageId, groupId }
   const draggable = useDraggable({ id: encodeDragId(dragId) })
+  const droppable = useDroppable({ id: flyoutDropId(groupId, pageId) })
+
+  const setRef = (el: HTMLElement | null) => {
+    draggable.setNodeRef(el)
+    droppable.setNodeRef(el)
+  }
 
   return (
-    <button
-      ref={draggable.setNodeRef as any}
-      {...draggable.attributes}
-      {...draggable.listeners}
-      onClick={onClick}
-      className={`${btnBase} ${
-        isActive
-          ? 'bg-blue-500 text-white'
-          : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-80 hover:opacity-100'
-      } ${draggable.isDragging ? 'opacity-30' : ''}`}
-      style={{ touchAction: 'none' }}
-      aria-label={PAGE_INFO[pageId].label}
-    >
-      <ItemContents pageId={pageId} recircActive={recircActive} />
-    </button>
+    <div className="relative">
+      {intent === 'before' && (
+        <div className="absolute -top-1 left-2 right-2 h-1 bg-blue-400 rounded-full pointer-events-none z-20" />
+      )}
+      <button
+        ref={setRef as any}
+        {...draggable.attributes}
+        {...draggable.listeners}
+        onClick={onClick}
+        className={`${btnBase} ${
+          isActive
+            ? 'bg-blue-500 text-white'
+            : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-80 hover:opacity-100'
+        } ${draggable.isDragging ? 'opacity-30' : ''}`}
+        style={{ touchAction: 'none' }}
+        aria-label={PAGE_INFO[pageId].label}
+      >
+        <ItemContents pageId={pageId} recircActive={recircActive} />
+      </button>
+      {intent === 'after' && (
+        <div className="absolute -bottom-1 left-2 right-2 h-1 bg-blue-400 rounded-full pointer-events-none z-20" />
+      )}
+    </div>
   )
 }
 
@@ -419,12 +498,14 @@ function GroupFlyout({
   anchorTop,
   activePage,
   recircActive,
+  flyoutOver,
   onItemClick,
 }: {
   group:        Extract<SidebarSlot, { kind: 'group' }>
   anchorTop:    number
   activePage:   AppPage
   recircActive: boolean
+  flyoutOver:   { groupId: string; pageId: AppPage; intent: 'before' | 'after' } | null
   onItemClick:  (p: AppPage) => void
 }) {
   const cols = Math.min(FLYOUT_COLS_MAX, Math.max(1, Math.ceil(group.items.length / FLYOUT_ROWS)))
@@ -451,16 +532,23 @@ function GroupFlyout({
           justifyItems:      'center',
         }}
       >
-        {group.items.map((pageId) => (
-          <FlyoutItem
-            key={pageId}
-            pageId={pageId}
-            groupId={group.id}
-            isActive={activePage === pageId}
-            recircActive={recircActive}
-            onClick={() => onItemClick(pageId)}
-          />
-        ))}
+        {group.items.map((pageId) => {
+          const intent =
+            flyoutOver && flyoutOver.groupId === group.id && flyoutOver.pageId === pageId
+              ? flyoutOver.intent
+              : null
+          return (
+            <FlyoutItem
+              key={pageId}
+              pageId={pageId}
+              groupId={group.id}
+              isActive={activePage === pageId}
+              recircActive={recircActive}
+              intent={intent}
+              onClick={() => onItemClick(pageId)}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -496,6 +584,9 @@ export default function Sidebar() {
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [overUid,      setOverUid]      = useState<string | null>(null)
   const [overIntent,   setOverIntent]   = useState<Intent | null>(null)
+  const [flyoutOver,   setFlyoutOver]   = useState<
+    { groupId: string; pageId: AppPage; intent: 'before' | 'after' } | null
+  >(null)
 
   // ── Group flyout state ──
   const [openGroupId,    setOpenGroupId]    = useState<string | null>(null)
@@ -541,23 +632,10 @@ export default function Sidebar() {
     setActiveDragId(String(e.active.id))
   }
 
-  const handleDragMove = (e: DragMoveEvent) => {
+  /** Compute intent from the dragged element's center vs the over rect. */
+  const computeIntent = (e: DragMoveEvent | DragEndEvent): { rel: number } | null => {
     const { over, active } = e
-    if (!over) { setOverUid(null); setOverIntent(null); return }
-    const overId = String(over.id)
-    if (!overId.startsWith(TOP_DROP_PREFIX)) { setOverUid(null); setOverIntent(null); return }
-    const uid = overId.slice(TOP_DROP_PREFIX.length)
-
-    // Don't show drop indicators on self
-    const drag = decodeDragId(String(active.id))
-    if (drag?.kind === 'top-item' && drag.pageId === uid) {
-      setOverUid(null); setOverIntent(null); return
-    }
-    if (drag?.kind === 'top-group' && drag.groupId === uid) {
-      setOverUid(null); setOverIntent(null); return
-    }
-
-    // Compute intent from dragged rect's center vs over rect's center
+    if (!over) return null
     const overTop    = over.rect.top
     const overHeight = over.rect.height
     const draggedTop = active.rect.current.translated?.top
@@ -565,29 +643,88 @@ export default function Sidebar() {
     const draggedH   = active.rect.current.initial?.height ?? overHeight
     const draggedCY  = draggedTop + draggedH / 2
     const overCY     = overTop + overHeight / 2
-    const rel        = (draggedCY - overCY) / overHeight  // -0.5 .. 0.5 roughly
+    return { rel: (draggedCY - overCY) / overHeight }   // -0.5 .. 0.5
+  }
 
-    let intent: Intent
-    if      (rel < -0.25) intent = 'before'
-    else if (rel >  0.25) intent = 'after'
-    else                  intent = 'merge'
+  const clearOver = () => {
+    setOverUid(null); setOverIntent(null); setFlyoutOver(null)
+  }
 
-    setOverUid(uid)
-    setOverIntent(intent)
+  const handleDragMove = (e: DragMoveEvent) => {
+    const { over, active } = e
+    if (!over) { clearOver(); return }
+    const overId = String(over.id)
+    const drag   = decodeDragId(String(active.id))
+    if (!drag) { clearOver(); return }
+
+    const r = computeIntent(e)
+    if (!r) { clearOver(); return }
+
+    if (overId.startsWith(TOP_DROP_PREFIX)) {
+      const uid = overId.slice(TOP_DROP_PREFIX.length)
+      if (drag.kind === 'top-item'  && drag.pageId  === uid) { clearOver(); return }
+      if (drag.kind === 'top-group' && drag.groupId === uid) { clearOver(); return }
+
+      let intent: Intent
+      if      (r.rel < -0.25) intent = 'before'
+      else if (r.rel >  0.25) intent = 'after'
+      else                    intent = 'merge'
+      setOverUid(uid); setOverIntent(intent); setFlyoutOver(null)
+      return
+    }
+
+    if (overId.startsWith(FLYOUT_DROP_PREFIX)) {
+      const decoded = decodeFlyoutDropId(overId)
+      if (!decoded) { clearOver(); return }
+      // Self-drops are no-ops
+      if (drag.kind === 'flyout-item'
+          && drag.groupId === decoded.groupId
+          && drag.pageId  === decoded.pageId) { clearOver(); return }
+      const intent: 'before' | 'after' = r.rel < 0 ? 'before' : 'after'
+      setOverUid(null); setOverIntent(null)
+      setFlyoutOver({ groupId: decoded.groupId, pageId: decoded.pageId, intent })
+      return
+    }
+
+    clearOver()
   }
 
   const handleDragEnd = (e: DragEndEvent) => {
     const drag = decodeDragId(String(e.active.id))
-    const uid  = overUid
-    const intent = overIntent
-    setActiveDragId(null); setOverUid(null); setOverIntent(null)
-    if (!drag || !uid || !intent) return
-    const next = applyDrop(layout, drag, uid, intent)
-    if (next !== layout) setSidebarLayout(next)
+    setActiveDragId(null); clearOver()
+    if (!drag || !e.over) return
+    const overId = String(e.over.id)
+    const r = computeIntent(e)
+    if (!r) return
+
+    if (overId.startsWith(TOP_DROP_PREFIX)) {
+      const uid = overId.slice(TOP_DROP_PREFIX.length)
+      if (drag.kind === 'top-item'  && drag.pageId  === uid) return
+      if (drag.kind === 'top-group' && drag.groupId === uid) return
+      let intent: Intent
+      if      (r.rel < -0.25) intent = 'before'
+      else if (r.rel >  0.25) intent = 'after'
+      else                    intent = 'merge'
+      const next = applyDrop(layout, drag, uid, intent)
+      if (next !== layout) setSidebarLayout(next)
+      return
+    }
+
+    if (overId.startsWith(FLYOUT_DROP_PREFIX)) {
+      const decoded = decodeFlyoutDropId(overId)
+      if (!decoded) return
+      if (drag.kind === 'flyout-item'
+          && drag.groupId === decoded.groupId
+          && drag.pageId  === decoded.pageId) return
+      const intent: 'before' | 'after' = r.rel < 0 ? 'before' : 'after'
+      const next = applyDropToFlyout(layout, drag, decoded.groupId, decoded.pageId, intent)
+      if (next !== layout) setSidebarLayout(next)
+      return
+    }
   }
 
   const handleDragCancel = (_e: DragCancelEvent) => {
-    setActiveDragId(null); setOverUid(null); setOverIntent(null)
+    setActiveDragId(null); clearOver()
   }
 
   // ── Click handlers ──
@@ -754,6 +891,7 @@ export default function Sidebar() {
             anchorTop={openGroupTop}
             activePage={activePage}
             recircActive={recircActive}
+            flyoutOver={flyoutOver}
             onItemClick={(p) => {
               setOpenGroupId(null)
               setPage(p)
