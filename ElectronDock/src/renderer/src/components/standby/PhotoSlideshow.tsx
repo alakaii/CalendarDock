@@ -73,18 +73,25 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
     sortedRef.current     = sortedPhotos
     intervalMsRef.current = intervalMs
 
-    // Auto-advance interval
+    // Auto-advance interval. Reads through refs so the closure isn't pinned
+    // to the front/back indices captured on the first render — those would
+    // never update (deps don't include them), causing the slideshow to
+    // alternate between just two photos.
     useEffect(() => {
       if (sortedPhotos.length < 2) return
 
       intervalRef.current = setInterval(() => {
         setShowFront((prev) => {
-          const nextIndex = (prev ? frontIndex : backIndex) + 1
-          const safeIndex = nextIndex % sortedPhotos.length
+          const len = sortedRef.current.length
+          if (len < 2) return prev
+          const cur  = prev ? frontIdxRef.current : backIdxRef.current
+          const next = (cur + 1) % len
           if (prev) {
-            setBackIndex(safeIndex)
+            backIdxRef.current = next
+            setBackIndex(next)
           } else {
-            setFrontIndex(safeIndex)
+            frontIdxRef.current = next
+            setFrontIndex(next)
           }
           // Notify the queue manager that one slide was shown
           window.api.photos.advance().catch(() => {})
@@ -95,7 +102,7 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current)
       }
-    }, [sortedPhotos.length, intervalMs]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [sortedPhotos.length, intervalMs])
 
     // Restart auto-advance using ref values (called after manual swipe)
     const restartInterval = () => {
