@@ -74,13 +74,27 @@ if [ -f /opt/CalendarDock/chrome-sandbox ]; then
   chmod 4755     /opt/CalendarDock/chrome-sandbox
 fi
 rm -f "$DEB"
-echo "Stopping calendardock..."
-systemctl stop calendardock || true
-pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
-sleep 1
-echo "Starting calendardock..."
-systemctl start calendardock
-echo "Done."
+# Hand the stop/start dance to a transient systemd unit so it can't get
+# self-killed: when the app spawned us via sudo, we live inside the
+# calendardock cgroup, so a direct `systemctl stop` would SIGTERM this
+# script before we could call `systemctl start`. systemd-run --no-block
+# returns immediately so this helper exits cleanly and the IPC call back
+# in the app resolves.
+echo "Scheduling restart via systemd-run..."
+systemd-run \
+  --collect \
+  --no-block \
+  --unit=calendardock-self-restart.service \
+  --description='Stop, kill orphans, then start calendardock after self-update' \
+  /bin/bash -c '
+    set -e
+    sleep 1
+    systemctl stop calendardock || true
+    pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
+    sleep 1
+    systemctl start calendardock
+  '
+echo "Done — restart scheduled."
 HELPER
 chmod 755 /usr/local/bin/calendardock-self-update
 chown root:root /usr/local/bin/calendardock-self-update

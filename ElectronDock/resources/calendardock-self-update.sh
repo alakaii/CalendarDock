@@ -37,14 +37,33 @@ fi
 echo "Cleaning up..."
 rm -f "$DEB"
 
-# Stop, force-kill any orphans, then start. A plain `systemctl restart`
-# can leave child processes alive holding ports (54321/54322), causing the
-# new instance to crash with EADDRINUSE. Belt-and-suspenders.
-echo "Stopping calendardock..."
-systemctl stop calendardock || true
-pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
-sleep 1
-echo "Starting calendardock..."
-systemctl start calendardock
+# We can't `systemctl stop calendardock` directly from this script: the app
+# spawned us (via sudo), so we live inside calendardock's cgroup. Stopping
+# the unit sends SIGTERM to that whole cgroup — including this script —
+# which kills us before we can start the service back up. The `|| true`
+# trick doesn't help because the shell itself dies on the signal.
+#
+# Workaround: hand the stop/start dance to a transient systemd unit.
+# --no-block returns immediately so this helper exits cleanly and the IPC
+# call back in the app resolves; the transient unit lives in its own
+# scope, so the subsequent `systemctl stop` doesn't take it out.
+#
+# Belt-and-suspenders pkill is kept because Electron's main process
+# doesn't always exit cleanly on SIGTERM; orphans hold ports 54321/54322
+# and the new instance crashes with EADDRINUSE.
+echo "Scheduling restart via systemd-run..."
+systemd-run \
+  --collect \
+  --no-block \
+  --unit=calendardock-self-restart.service \
+  --description='Stop, kill orphans, then start calendardock after self-update' \
+  /bin/bash -c '
+    set -e
+    sleep 1
+    systemctl stop calendardock || true
+    pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
+    sleep 1
+    systemctl start calendardock
+  '
 
-echo "Done."
+echo "Done — restart scheduled."
