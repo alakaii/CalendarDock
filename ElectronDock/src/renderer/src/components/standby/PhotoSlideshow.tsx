@@ -60,6 +60,30 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
     const [showFront,  setShowFront]  = useState(true)
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+    // ── Image preloader ───────────────────────────────────────────────────────
+    // Holds a small window of fully-fetched + decoded HTMLImageElements so the
+    // next swap's image is already in the browser cache. Without this, the
+    // newly-mounted <img> kicks off a disk read + decode mid-transition and
+    // pops in halfway through the fade.
+    const preloadCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
+    const preloadOrderRef = useRef<string[]>([])
+    const preload = (url: string) => {
+      const cache = preloadCacheRef.current
+      if (cache.has(url)) return
+      const img = new Image()
+      img.decoding = 'async'
+      img.src = url
+      cache.set(url, img)
+      preloadOrderRef.current.push(url)
+      // Keep the last 5 — beyond that the browser cache + GC can take over.
+      while (preloadOrderRef.current.length > 5) {
+        const old = preloadOrderRef.current.shift()!
+        cache.delete(old)
+      }
+      // Force decode so the bitmap is ready before the swap.
+      if ('decode' in img) img.decode().catch(() => { /* skip if it fails */ })
+    }
+
     // Refs that always mirror the latest values — needed for imperative navigate()
     const frontIdxRef   = useRef(frontIndex)
     const backIdxRef    = useRef(backIndex)
@@ -72,6 +96,20 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
     showFrontRef.current  = showFront
     sortedRef.current     = sortedPhotos
     intervalMsRef.current = intervalMs
+
+    const photoUrl = (filename: string) =>
+      `cdphoto://photo/${encodeURIComponent(filename)}`
+
+    // Whenever the photo list changes, prime the preloader with the next
+    // few images so the first transitions don't start cold.
+    useEffect(() => {
+      if (sortedPhotos.length === 0) return
+      const start = Math.max(frontIdxRef.current, backIdxRef.current)
+      for (let i = 0; i < 3; i++) {
+        const idx = (start + i) % sortedPhotos.length
+        preload(photoUrl(sortedPhotos[idx]))
+      }
+    }, [sortedPhotos]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Auto-advance interval. Reads through refs so the closure isn't pinned
     // to the front/back indices captured on the first render — those would
@@ -93,6 +131,9 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
             frontIdxRef.current = next
             setFrontIndex(next)
           }
+          // Preload the image AFTER the one we just queued, so it's ready
+          // and decoded when the next swap fires.
+          preload(photoUrl(sortedRef.current[(next + 1) % len]))
           // Notify the queue manager that one slide was shown
           window.api.photos.advance().catch(() => {})
           return !prev
@@ -110,10 +151,12 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       if (sortedRef.current.length < 2) return
       intervalRef.current = setInterval(() => {
         setShowFront((p) => {
-          const ni = (p ? frontIdxRef.current : backIdxRef.current) + 1
-          const si = ni % sortedRef.current.length
+          const len = sortedRef.current.length
+          const ni  = (p ? frontIdxRef.current : backIdxRef.current) + 1
+          const si  = ni % len
           if (p) { backIdxRef.current  = si; setBackIndex(si)  }
           else   { frontIdxRef.current = si; setFrontIndex(si) }
+          preload(photoUrl(sortedRef.current[(si + 1) % len]))
           return !p
         })
       }, intervalMsRef.current)
@@ -137,6 +180,9 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       showFrontRef.current = !isFront
       setShowFront(!isFront)
 
+      // Preload the image past where we just navigated.
+      preload(photoUrl(sortedRef.current[((newIdx + direction) % len + len) % len]))
+
       // Notify the queue manager that a slide was shown (manual navigation)
       window.api.photos.advance().catch(() => {})
 
@@ -153,9 +199,6 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       return <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-950" />
     }
 
-    const photoUrl = (filename: string) =>
-      `cdphoto://photo/${encodeURIComponent(filename)}`
-
     const transMs      = `${transitionDurationMs}ms`
     const zoomDuration = `${intervalMs + transitionDurationMs}ms`
     const zoomStyle = (isActive: boolean): React.CSSProperties =>
@@ -170,10 +213,13 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
           key={`back-${backIndex}`}
           src={photoUrl(sortedPhotos[backIndex % sortedPhotos.length] ?? sortedPhotos[0])}
           alt=""
+          decoding="async"
+          loading="eager"
           className="absolute inset-0 w-full h-full object-cover"
           style={{
             opacity: showFront ? 0 : 1,
             transition: `opacity ${transMs} ease`,
+            willChange: 'opacity, transform',
             ...zoomStyle(!showFront)
           }}
           draggable={false}
@@ -183,10 +229,13 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
           key={`front-${frontIndex}`}
           src={photoUrl(sortedPhotos[frontIndex % sortedPhotos.length] ?? sortedPhotos[0])}
           alt=""
+          decoding="async"
+          loading="eager"
           className="absolute inset-0 w-full h-full object-cover"
           style={{
             opacity: showFront ? 1 : 0,
             transition: `opacity ${transMs} ease`,
+            willChange: 'opacity, transform',
             ...zoomStyle(showFront)
           }}
           draggable={false}
