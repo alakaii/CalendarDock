@@ -9,6 +9,7 @@ type WizardPhase =
   | 'countdown-trigger'
   | 'reading-trigger'
   | 'complete'
+  | 'testing'
 
 const DEFAULT_PIXEL_NOISE = 20
 
@@ -38,6 +39,9 @@ export default function CameraWakeSettings() {
   const [countdown, setCountdown]       = useState(3)
   const [capProgress, setCapProgress]   = useState(0)
   const [liveScore, setLiveScore]       = useState(0)
+  const [peakScore, setPeakScore]       = useState(0)
+  const [sustainedSec, setSustainedSec] = useState(0)
+  const motionStartTsRef                = useRef<number | null>(null)
 
   // Camera refs
   const videoRef    = useRef<HTMLVideoElement | null>(null)
@@ -185,6 +189,29 @@ export default function CameraWakeSettings() {
     return () => clearInterval(iv)
   }, [phase, computeScore])
 
+  // ── Phase: testing ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (phase !== 'testing') return
+    activeRef.current = true
+    motionStartTsRef.current = null
+    setPeakScore(0)
+    setSustainedSec(0)
+    const iv = setInterval(() => {
+      const s = computeScore()
+      setLiveScore(s)
+      setPeakScore((p) => (s > p ? s : p))
+      if (s > threshold) {
+        if (motionStartTsRef.current === null) motionStartTsRef.current = Date.now()
+        setSustainedSec((Date.now() - motionStartTsRef.current) / 1000)
+      } else if (motionStartTsRef.current !== null) {
+        motionStartTsRef.current = null
+        setSustainedSec(0)
+      }
+    }, 200)
+    return () => clearInterval(iv)
+  }, [phase, computeScore, threshold])
+
   // ── Wizard actions ─────────────────────────────────────────────────────────────
 
   const startWizard = async () => {
@@ -210,6 +237,23 @@ export default function CameraWakeSettings() {
     setCameraWakeCalibration(bg, newThreshold)
     stopCamera()
     setPhase('complete')
+  }
+
+  const startTest = async () => {
+    if (!background) return
+    const ok = await startCamera()
+    if (!ok) return
+    tempBgRef.current = background
+    activeRef.current = true
+    setPhase('testing')
+  }
+
+  const stopTest = () => {
+    activeRef.current = false
+    stopCamera()
+    tempBgRef.current = null
+    motionStartTsRef.current = null
+    setPhase('idle')
   }
 
   // ── Styles ─────────────────────────────────────────────────────────────────────
@@ -262,12 +306,28 @@ export default function CameraWakeSettings() {
     )
   }
 
-  const showCamera = ['countdown-background', 'capturing-background', 'countdown-trigger', 'reading-trigger'].includes(phase)
+  const showCamera = ['countdown-background', 'capturing-background', 'countdown-trigger', 'reading-trigger', 'testing'].includes(phase)
 
   // ── Render ──────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8 max-w-xl">
+      {/* Full-window border overlay while in test mode */}
+      {phase === 'testing' && (
+        <>
+          <style>{`
+            @keyframes camTestPulse {
+              0%, 100% { box-shadow: inset 0 0 0 8px rgba(59,130,246,0.95), inset 0 0 50px rgba(59,130,246,0.40); }
+              50%      { box-shadow: inset 0 0 0 8px rgba(59,130,246,0.55), inset 0 0 30px rgba(59,130,246,0.20); }
+            }
+          `}</style>
+          <div
+            className="fixed inset-0 pointer-events-none"
+            style={{ zIndex: 200, animation: 'camTestPulse 1.6s ease-in-out infinite' }}
+          />
+        </>
+      )}
+
       <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Camera Wake</h2>
 
       <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -469,15 +529,73 @@ export default function CameraWakeSettings() {
           <div className="space-y-3">
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               {isCalibrated
-                ? 'Calibration complete. You can re-calibrate at any time.'
+                ? 'Calibration complete. Test detection at different distances or re-calibrate.'
                 : 'Two quick recordings: empty room, then stand at your desired trigger distance.'}
             </p>
-            <button
-              onClick={startWizard}
-              className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
-              style={{ background: '#3b82f6', color: '#fff' }}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={startWizard}
+                className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
+                style={{ background: '#3b82f6', color: '#fff' }}
+              >
+                {isCalibrated ? 'Re-calibrate' : 'Start Calibration'}
+              </button>
+              {isCalibrated && (
+                <button
+                  onClick={startTest}
+                  className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
+                  style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}
+                >
+                  Test detection
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TESTING */}
+        {phase === 'testing' && (
+          <div className="space-y-3">
+            <div
+              className="rounded-xl p-4 space-y-3"
+              style={{ background: 'var(--card-bg)', border: '2px solid #3b82f6' }}
             >
-              {isCalibrated ? 'Re-calibrate' : 'Start Calibration'}
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#3b82f6' }} />
+                <p className="text-sm font-semibold" style={{ color: '#3b82f6' }}>Detection test</p>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Move around at different distances to see what registers. The blue border around the
+                screen marks test mode — wake actions are not triggered.
+              </p>
+
+              <ScoreBar score={liveScore} thresh={threshold} label="Live motion score" />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Sustained motion</p>
+                  <p
+                    className="text-2xl font-bold tabular-nums"
+                    style={{ color: motionStartTsRef.current !== null ? '#22c55e' : 'var(--text-primary)' }}
+                  >
+                    {sustainedSec.toFixed(1)}s
+                  </p>
+                </div>
+                <div className="rounded-lg p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Peak score</p>
+                  <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                    {(peakScore * 100).toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={stopTest}
+              className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
+              style={{ background: '#ef4444', color: '#fff' }}
+            >
+              Stop test
             </button>
           </div>
         )}
