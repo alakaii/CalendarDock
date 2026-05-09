@@ -104,15 +104,44 @@ npm install
 Create a `.env` file in `ElectronDock/` (dev) or `~/.config/calendardock/credentials.env` (kiosk) with:
 
 ```
+# Required — Google OAuth (used for the Calendar / Tasks integrations)
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
+
+# Optional — bootstrapped into settings on first run when the field is empty.
+# Once set via the in-app Settings UI, the UI value wins on subsequent boots.
+# Anything not listed here can only be entered through Settings.
+
+# Wyze Bridge (Wyze deprecated plain login; API_ID + API_KEY come from
+# https://developer-api-console.wyze.com/)
+WYZE_EMAIL=...
+WYZE_PASSWORD=...
+WYZE_API_ID=...
+WYZE_API_KEY=...
+
+# Dropbox app key (browser-based OAuth still required to grant access)
+DROPBOX_APP_KEY=...
+
+# Rachio
+RACHIO_API_KEY=...
+
+# Rinnai (water heater) — bootstrapped only as a pair
+RINNAI_EMAIL=...
+RINNAI_PASSWORD=...
+
+# OpenWeatherMap
+WEATHER_API_KEY=...
+WEATHER_LOCATION="City, State"
+
+# Ring (in-app 2FA flow still required to actually connect)
+RING_EMAIL=...
 ```
 
-These come from a **Desktop app** OAuth client at <https://console.cloud.google.com> → APIs & Services → Credentials. Enable the **Google Calendar API** and **Google Tasks API** for the project.
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` come from a **Desktop app** OAuth client at <https://console.cloud.google.com> → APIs & Services → Credentials. Enable the **Google Calendar API** and **Google Tasks API** for the project.
 
 The credentials file is loaded from outside the package on purpose — the `.deb` is published to a public GitHub Release, so secrets must never be bundled.
 
-Everything else (Dropbox, Rachio, OpenWeatherMap, Rinnai login, Ring login, Wyze bridge config) is entered at runtime from the Settings UI and stored encrypted by `electron-store` + Electron `safeStorage`.
+Everything bootstrapped from env can also be entered (or changed) from the in-app Settings UI; the UI value always wins after first boot. Settings are persisted by `electron-store`, with OAuth refresh tokens encrypted via Electron `safeStorage`.
 
 ### Run in development
 

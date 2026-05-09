@@ -29,6 +29,7 @@ import { settingsService } from './services/settings.service'
 import { photoQueueService } from './services/photoQueue.service'
 import { wyzeBridgeService } from './services/wyze-bridge.service'
 import { ringService } from './services/ring.service'
+import { bootstrapCredentialsFromEnv } from './services/credentials-bootstrap.service'
 import { is } from '@electron-toolkit/utils'
 
 // ── Kiosk / touchscreen flags (must be set before app.ready) ────────────────
@@ -84,6 +85,10 @@ if (!gotLock) {
 
     // Register all IPC handlers
     registerIpcHandlers(win)
+
+    // Pull SSH-deployed credentials from credentials.env into settings
+    // (only fills empty fields, never overrides anything set via the UI).
+    bootstrapCredentialsFromEnv()
 
     // Auto-start Wyze bridge if credentials are configured
     const wyzeEmail  = settingsService.get('wyzeBridgeEmail')    ?? ''
