@@ -61,7 +61,9 @@ const defaults: StoredSettings = {
     durationSec: 8,
     sortOrder: 'filename' as const,
     transition: 'fade' as const,
-    transitionDurationMs: 1500
+    transitionDurationMs: 1500,
+    cropMode: 'fit' as const,
+    focusSafeZonePercent: 60,
   },
   standbyLayout: {
     time:    { corner: 'top-left' as const,     enabled: true  },

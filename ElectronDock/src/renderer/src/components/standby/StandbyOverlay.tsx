@@ -102,6 +102,8 @@ export default function StandbyOverlay() {
         intervalMs={slideshow.durationSec * 1000}
         transition={slideshow.transition}
         transitionDurationMs={slideshow.transitionDurationMs}
+        cropMode={slideshow.cropMode}
+        focusSafeZonePercent={slideshow.focusSafeZonePercent}
       />
 
       {/* Corner groups — one absolute flex group per corner */}

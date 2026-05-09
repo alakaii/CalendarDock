@@ -99,6 +99,11 @@ export default function PhotoSettings() {
     { value: 'zoom', label: 'Zoom + fade', description: 'Ken Burns slow zoom' },
   ]
 
+  const cropModes: { value: 'fit' | 'focus'; label: string; description: string }[] = [
+    { value: 'fit',   label: 'Scale to fit', description: 'Whole photo, blurred backdrop' },
+    { value: 'focus', label: 'Focus',        description: 'Fill the screen, anchor on subject' },
+  ]
+
   const labelStyle = { color: 'var(--text-primary)' }
   const subStyle   = { color: 'var(--text-secondary)' }
   const cardStyle  = { background: 'var(--card-bg)', border: '1px solid var(--card-border)' }
@@ -358,6 +363,92 @@ export default function PhotoSettings() {
         <div className="flex justify-between text-xs" style={subStyle}>
           <span>0.3s (instant)</span><span>3s (slow)</span>
         </div>
+      </section>
+
+      {/* ── Photo Crop ─────────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div>
+          <label className="text-sm font-medium" style={labelStyle}>Photo crop</label>
+          <p className="text-xs mt-0.5" style={subStyle}>
+            How off-aspect photos (vertical, panoramic, square) are framed.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {cropModes.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setSlideshowSettings({ ...slideshow, cropMode: m.value })}
+              className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl text-left border transition-colors"
+              style={{
+                background:  slideshow.cropMode === m.value ? 'rgba(59,130,246,0.12)' : 'var(--bg-base)',
+                borderColor: slideshow.cropMode === m.value ? '#3b82f6' : 'var(--border)',
+                color:       slideshow.cropMode === m.value ? '#3b82f6' : 'var(--text-primary)',
+              }}
+            >
+              <span className="text-xs font-semibold">{m.label}</span>
+              <span className="text-[10px]" style={subStyle}>{m.description}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Focus-mode safe zone slider + preview */}
+        {slideshow.cropMode === 'focus' && (
+          <div className="space-y-3 pt-2">
+            <div>
+              <label className="text-xs font-medium" style={labelStyle}>
+                Keep focus within — {slideshow.focusSafeZonePercent}% of frame
+              </label>
+              <p className="text-[11px] mt-0.5" style={subStyle}>
+                Larger = looser. Subject can drift further from center before the photo pans.
+              </p>
+            </div>
+            <input
+              type="range" min={30} max={100} step={5}
+              value={slideshow.focusSafeZonePercent}
+              onChange={(e) => setSlideshowSettings({ ...slideshow, focusSafeZonePercent: Number(e.target.value) })}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ accentColor: '#3b82f6' }}
+            />
+
+            {/* Live preview: 16:9 frame with the safe zone overlaid */}
+            <div
+              className="relative rounded-lg overflow-hidden"
+              style={{
+                width: '100%',
+                aspectRatio: '16 / 9',
+                background:
+                  'repeating-linear-gradient(45deg, var(--bg-base) 0 8px, var(--card-bg) 8px 16px)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div
+                className="absolute"
+                style={{
+                  top:    `${(100 - slideshow.focusSafeZonePercent) / 2}%`,
+                  left:   `${(100 - slideshow.focusSafeZonePercent) / 2}%`,
+                  width:  `${slideshow.focusSafeZonePercent}%`,
+                  height: `${slideshow.focusSafeZonePercent}%`,
+                  border: '2px dashed #3b82f6',
+                  background: 'rgba(59,130,246,0.15)',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.35) inset',
+                  pointerEvents: 'none',
+                }}
+              />
+              <span
+                className="absolute top-1.5 left-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded"
+                style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}
+              >
+                Safe zone preview
+              </span>
+            </div>
+
+            <p className="text-[11px]" style={subStyle}>
+              Heads-up: focus mode currently centers the photo. Face-detection-driven anchoring lands
+              in the next update — the slider value will start panning the photo to keep the detected
+              subject inside this rectangle.
+            </p>
+          </div>
+        )}
       </section>
     </div>
   )

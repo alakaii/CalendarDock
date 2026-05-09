@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react'
-import type { SlideshowSortOrder, SlideshowTransition } from '../../../../preload/types'
+import type { SlideshowSortOrder, SlideshowTransition, SlideshowCropMode } from '../../../../preload/types'
 
 interface PhotoSlideshowProps {
   photos: string[]
@@ -7,6 +7,9 @@ interface PhotoSlideshowProps {
   intervalMs?: number
   transition?: SlideshowTransition
   transitionDurationMs?: number
+  cropMode?: SlideshowCropMode
+  /** 30–100. Reserved for face-detection-driven anchoring (lands next). */
+  focusSafeZonePercent?: number
 }
 
 export interface PhotoSlideshowHandle {
@@ -41,7 +44,9 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       sortOrder = 'filename',
       intervalMs = 8000,
       transition = 'fade',
-      transitionDurationMs = 1500
+      transitionDurationMs = 1500,
+      cropMode = 'fit',
+      focusSafeZonePercent: _focusSafeZonePercent = 60,
     },
     ref
   ) {
@@ -207,13 +212,47 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
         : {}
 
     /**
-     * One full-bleed slide: a heavily-blurred copy of the same photo behind a
-     * contained main image. Eliminates awkward edge crops on portrait /
-     * panorama / off-center subjects — the entire photo always shows, and the
-     * leftover space is filled with the photo's own colors.
+     * One full-bleed slide. Two layouts:
+     *
+     * `fit` — letterbox the whole photo on a heavy-blurred copy of itself.
+     *   Eliminates awkward edge crops on portrait / panorama / off-center
+     *   subjects; the entire photo always shows.
+     *
+     * `focus` — fill the screen with the photo (object-cover). Anchored at
+     *   center for now; the next iteration will pan based on detected face /
+     *   salient region while keeping the anchor inside the safe zone slider.
      */
     const renderLayer = (key: string, idx: number, visible: boolean) => {
       const url = photoUrl(sortedPhotos[idx % sortedPhotos.length] ?? sortedPhotos[0])
+
+      if (cropMode === 'focus') {
+        return (
+          <div
+            key={key}
+            className="absolute inset-0"
+            style={{
+              opacity: visible ? 1 : 0,
+              transition: `opacity ${transMs} ease`,
+              willChange: 'opacity',
+            }}
+          >
+            <img
+              src={url}
+              alt=""
+              decoding="async"
+              loading="eager"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: '50% 50%',  // TODO: pan to focal point + safe zone
+                willChange: 'transform',
+                ...zoomStyle(visible),
+              }}
+              draggable={false}
+            />
+          </div>
+        )
+      }
+
       return (
         <div
           key={key}

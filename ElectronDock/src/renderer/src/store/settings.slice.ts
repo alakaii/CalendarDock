@@ -77,7 +77,9 @@ const defaults: AppSettings = {
     durationSec: 8,
     sortOrder: 'filename',
     transition: 'fade',
-    transitionDurationMs: 1500
+    transitionDurationMs: 1500,
+    cropMode: 'fit',
+    focusSafeZonePercent: 60,
   },
   standbyLayout: {
     time:    { corner: 'top-left',     enabled: true },

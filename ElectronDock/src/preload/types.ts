@@ -75,6 +75,12 @@ export type SidebarSlot =
 
 export type SlideshowSortOrder = 'random' | 'filename' | 'date'
 export type SlideshowTransition = 'fade' | 'zoom'
+/**
+ * 'fit'   = letterbox the whole photo onto a blurred copy of itself.
+ * 'focus' = fill the screen, anchor on detected face / salient region; the
+ *           slider keeps the anchor inside `focusSafeZonePercent` of the frame.
+ */
+export type SlideshowCropMode = 'fit' | 'focus'
 
 export interface SlideshowSettings {
   /** Seconds each slide is shown (3–30) */
@@ -85,6 +91,10 @@ export interface SlideshowSettings {
   transition: SlideshowTransition
   /** Transition animation duration in milliseconds (500–3000) */
   transitionDurationMs: number
+  /** How off-aspect photos are framed */
+  cropMode: SlideshowCropMode
+  /** Focus-mode safe zone — the focal point must stay within this % of the frame (30–100). */
+  focusSafeZonePercent: number
 }
 
 // ---- Standby Layout ----
