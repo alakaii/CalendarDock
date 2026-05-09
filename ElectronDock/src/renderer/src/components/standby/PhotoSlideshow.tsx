@@ -206,40 +206,60 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
         ? { animation: `kenburns ${zoomDuration} linear forwards` }
         : {}
 
+    /**
+     * One full-bleed slide: a heavily-blurred copy of the same photo behind a
+     * contained main image. Eliminates awkward edge crops on portrait /
+     * panorama / off-center subjects — the entire photo always shows, and the
+     * leftover space is filled with the photo's own colors.
+     */
+    const renderLayer = (key: string, idx: number, visible: boolean) => {
+      const url = photoUrl(sortedPhotos[idx % sortedPhotos.length] ?? sortedPhotos[0])
+      return (
+        <div
+          key={key}
+          className="absolute inset-0"
+          style={{
+            opacity: visible ? 1 : 0,
+            transition: `opacity ${transMs} ease`,
+            willChange: 'opacity',
+          }}
+        >
+          {/* Blurred backdrop — same image, scaled up + heavy blur fills the
+              negative space without showing edge ringing. */}
+          <img
+            src={url}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            loading="eager"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{
+              filter: 'blur(40px) brightness(0.55)',
+              transform: 'scale(1.1)',
+            }}
+            draggable={false}
+          />
+          {/* Main image — full photo always visible (no crop) */}
+          <img
+            src={url}
+            alt=""
+            decoding="async"
+            loading="eager"
+            className="absolute inset-0 w-full h-full object-contain"
+            style={{
+              willChange: 'transform',
+              ...zoomStyle(visible),
+            }}
+            draggable={false}
+          />
+        </div>
+      )
+    }
+
     return (
-      <div className="absolute inset-0">
-        {/* Back layer */}
-        <img
-          key={`back-${backIndex}`}
-          src={photoUrl(sortedPhotos[backIndex % sortedPhotos.length] ?? sortedPhotos[0])}
-          alt=""
-          decoding="async"
-          loading="eager"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{
-            opacity: showFront ? 0 : 1,
-            transition: `opacity ${transMs} ease`,
-            willChange: 'opacity, transform',
-            ...zoomStyle(!showFront)
-          }}
-          draggable={false}
-        />
-        {/* Front layer */}
-        <img
-          key={`front-${frontIndex}`}
-          src={photoUrl(sortedPhotos[frontIndex % sortedPhotos.length] ?? sortedPhotos[0])}
-          alt=""
-          decoding="async"
-          loading="eager"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{
-            opacity: showFront ? 1 : 0,
-            transition: `opacity ${transMs} ease`,
-            willChange: 'opacity, transform',
-            ...zoomStyle(showFront)
-          }}
-          draggable={false}
-        />
+      <div className="absolute inset-0 bg-black">
+        {renderLayer(`back-${backIndex}`,   backIndex,  !showFront)}
+        {renderLayer(`front-${frontIndex}`, frontIndex,  showFront)}
         {/* Gradient overlay to make text readable */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
       </div>
