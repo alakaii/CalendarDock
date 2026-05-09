@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { format, isToday, parseISO } from 'date-fns'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCalendars } from '../../hooks/useCalendars'
+import { eventColor } from '../../utils/eventColors'
 import type { CalendarEvent } from '../../../../preload/types'
 import type { StandbyCorner } from '../../../../preload/types'
 
@@ -74,7 +75,8 @@ export default function TodayEventsDrawer({ corner }: Props) {
     <div className="w-72 max-h-[40vh] overflow-y-auto rounded-xl bg-black/50 backdrop-blur-md
                     border border-white/20 p-3 space-y-2">
       {todayEvents.map((ev) => {
-        const color = calendars.find((c) => c.id === ev.calendarId)?.backgroundColor ?? '#4285F4'
+        const cal   = calendars.find((c) => c.id === ev.calendarId)
+        const color = eventColor(ev.colorId, cal?.backgroundColor)
         return (
           <div key={ev.id} className="flex items-start gap-2 py-1">
             <div

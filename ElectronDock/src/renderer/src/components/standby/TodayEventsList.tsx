@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { format, isToday, parseISO } from 'date-fns'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCalendars } from '../../hooks/useCalendars'
+import { eventColor } from '../../utils/eventColors'
 import type { CalendarEvent } from '../../../../preload/types'
 
 export default function TodayEventsList() {
@@ -60,7 +61,8 @@ export default function TodayEventsList() {
       {expanded && todayEvents.length > 0 && (
         <div className="max-h-[40vh] overflow-y-auto px-6 pb-4 space-y-2">
           {todayEvents.map((ev) => {
-            const color = calendars.find((c) => c.id === ev.calendarId)?.backgroundColor ?? '#4285F4'
+            const cal   = calendars.find((c) => c.id === ev.calendarId)
+            const color = eventColor(ev.colorId, cal?.backgroundColor)
             return (
               <div key={ev.id} className="flex items-start gap-3 py-2">
                 <div className="w-1 h-full min-h-[20px] rounded-full flex-shrink-0 mt-0.5"

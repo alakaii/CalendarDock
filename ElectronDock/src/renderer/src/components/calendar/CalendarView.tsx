@@ -5,6 +5,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { EventClickArg, DateClickArg, EventInput } from '@fullcalendar/core'
 import { useCalendars } from '../../hooks/useCalendars'
+import { eventColor } from '../../utils/eventColors'
 import { useCalendarEvents } from '../../hooks/useCalendarEvents'
 import { useSettingsStore } from '../../store/settings.slice'
 import { useUIStore } from '../../store/ui.slice'
@@ -104,7 +105,7 @@ export default function CalendarView() {
   // Convert to FullCalendar format
   const fcEvents: EventInput[] = visibleEvents.map((ev) => {
     const cal = calendars.find((c) => c.id === ev.calendarId)
-    const bg = cal?.backgroundColor ?? '#4285F4'
+    const bg  = eventColor(ev.colorId, cal?.backgroundColor)
     return {
       id: ev.id,
       title: ev.title,
