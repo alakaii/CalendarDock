@@ -10,7 +10,7 @@
 import { join } from 'path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { rm, unlink, readdir, stat, mkdir } from 'fs/promises'
+import { unlink, readdir, stat, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { settingsService } from './settings.service'
 import { photosService } from './photos.service'
@@ -52,6 +52,15 @@ let dawnTimer: ReturnType<typeof setTimeout> | null = null
 
 function emit(pct: number, status: string): void {
   mainWin?.webContents.send('dropbox:progress', { pct, status })
+}
+
+/**
+ * Push the canonical disk-state into photosService so the renderer's photo list
+ * stays correct independent of chokidar watcher health. Called after every bulk
+ * disk operation (initial fill, dawn refresh, top-up).
+ */
+function syncPhotos(): void {
+  if (mainWin) photosService.setList(downloadedFiles, mainWin)
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -112,6 +121,7 @@ export const photoQueueService = {
     } catch {
       downloadedFiles = []
     }
+    syncPhotos()
   },
 
   // ── Initial fill (also called by "Sync Now") ─────────────────────────────────
@@ -134,8 +144,13 @@ export const photoQueueService = {
       advanceCount    = 0
 
       emit(5, `Found ${allPhotos.length} photos — clearing old cache…`)
-      if (existsSync(cacheDir)) await rm(cacheDir, { recursive: true, force: true })
+      // Empty the cache dir in place rather than rm-rf'ing it. Removing the
+      // directory destroys the chokidar inotify watch on Linux; recreating
+      // the path doesn't restore it, leaving the renderer with an empty list
+      // even after downloads succeed.
       await mkdir(cacheDir, { recursive: true })
+      const oldFiles = await readdir(cacheDir).catch(() => [] as string[])
+      await Promise.all(oldFiles.map((f) => unlink(join(cacheDir, f)).catch(() => {})))
 
       const toDownload = shuffledQueue.slice(0, CACHE_SIZE)
       queuePointer     = toDownload.length
@@ -243,6 +258,7 @@ export const photoQueueService = {
       }
 
       settingsService.setDropboxLastSync(Date.now())
+      syncPhotos()
       emit(100, `Done — ${downloadedFiles.length} photos in cache`)
       console.log(`[photoQueue] Dawn refresh complete: ${downloadedFiles.length} photos on disk`)
     } catch (err) {
@@ -294,6 +310,7 @@ export const photoQueueService = {
         downloadedFiles.push(...newFiles)
         console.log(`[photoQueue] Top-up: +${newFiles.length} files → ${downloadedFiles.length} total`)
       }
+      syncPhotos()
     } catch (err) {
       console.error('[photoQueue] Top-up failed:', err)
     } finally {

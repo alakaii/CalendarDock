@@ -51,6 +51,16 @@ export const photosService = {
     return [...photoList]
   },
 
+  /**
+   * Replace the photo list in one shot and notify the renderer.
+   * Used by photoQueueService after bulk disk operations so correctness
+   * doesn't depend on the chokidar watcher emitting every change.
+   */
+  setList(filenames: string[], win: BrowserWindow): void {
+    photoList = [...filenames]
+    win.webContents.send('photos:list-updated', [...photoList])
+  },
+
   restartWatcher(folderPath: string, win: BrowserWindow): void {
     this.startWatcher(folderPath, win)
   }
