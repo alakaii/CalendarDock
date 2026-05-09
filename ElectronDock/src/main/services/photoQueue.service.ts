@@ -18,16 +18,26 @@ import { dropboxService } from './dropbox.service'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const CACHE_SIZE      = 500   // total photos to keep on disk
-const EVICT_THRESHOLD = 250   // advance count that triggers a top-up
-const EVICT_BATCH     = 250   // files to evict per cycle
-const DOWNLOAD_BATCH  = 250   // files to download per top-up
-const DAWN_HOUR       = 6     // hour of daily index refresh (06:05)
-
+const DAWN_HOUR = 6           // hour of daily index refresh (06:05)
 const SUPPORTED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'])
 
 function getCacheDir(): string {
   return join(app.getPath('userData'), 'dropbox-cache')
+}
+
+/** Total photos to keep on disk — driven by the "Photos to sync" slider. */
+function cacheSize(): number {
+  const n = settingsService.getAll().dropboxPhotoCount
+  return Math.max(1, Number.isFinite(n) ? n : 200)
+}
+
+/**
+ * Evict / download / advance-trigger batch size, scaled to the cache size
+ * so a 50-photo cache doesn't sit unchanged for 250 advances. Half the
+ * cache (rounded up) — same proportion as the original 250/500 constants.
+ */
+function batchSize(): number {
+  return Math.max(1, Math.ceil(cacheSize() / 2))
 }
 
 /** In-place Fisher-Yates shuffle */
@@ -152,7 +162,7 @@ export const photoQueueService = {
       const oldFiles = await readdir(cacheDir).catch(() => [] as string[])
       await Promise.all(oldFiles.map((f) => unlink(join(cacheDir, f)).catch(() => {})))
 
-      const toDownload = shuffledQueue.slice(0, CACHE_SIZE)
+      const toDownload = shuffledQueue.slice(0, cacheSize())
       queuePointer     = toDownload.length
 
       await dropboxService.downloadBatch(toDownload, cacheDir, (done, total) => {
@@ -176,7 +186,7 @@ export const photoQueueService = {
 
   advance(): void {
     advanceCount++
-    if (advanceCount >= EVICT_THRESHOLD && !isWorking) {
+    if (advanceCount >= batchSize() && !isWorking) {
       if (isPaused) {
         topUpPending = true
       } else {
@@ -240,8 +250,8 @@ export const photoQueueService = {
       queuePointer    = downloadedFiles.length  // skip re-downloading what we still have
       emit(20, `Index refreshed — ${allPhotos.length} total photos`)
 
-      // 3. Top up to CACHE_SIZE
-      const needed = CACHE_SIZE - downloadedFiles.length
+      // 3. Top up to the configured cache size
+      const needed = cacheSize() - downloadedFiles.length
       if (needed > 0 && queuePointer < shuffledQueue.length) {
         const count   = Math.min(needed, shuffledQueue.length - queuePointer)
         const toBatch = shuffledQueue.slice(queuePointer, queuePointer + count)
@@ -282,8 +292,8 @@ export const photoQueueService = {
 
       console.log('[photoQueue] Top-up: evicting oldest batch and downloading fresh')
 
-      // 1. Evict the oldest EVICT_BATCH files
-      const toEvict = downloadedFiles.splice(0, Math.min(EVICT_BATCH, downloadedFiles.length))
+      // 1. Evict the oldest batch
+      const toEvict = downloadedFiles.splice(0, Math.min(batchSize(), downloadedFiles.length))
       for (const filename of toEvict) {
         await unlink(join(cacheDir, filename)).catch(() => {})
       }
@@ -296,9 +306,9 @@ export const photoQueueService = {
       }
 
       // 3. Download next batch
-      const needed  = CACHE_SIZE - downloadedFiles.length
+      const needed  = cacheSize() - downloadedFiles.length
       const avail   = shuffledQueue.length > 0 ? shuffledQueue.length - queuePointer : 0
-      const count   = Math.min(needed, DOWNLOAD_BATCH, avail)
+      const count   = Math.min(needed, batchSize(), avail)
       const toBatch = shuffledQueue.slice(queuePointer, queuePointer + count)
       queuePointer += count
 
