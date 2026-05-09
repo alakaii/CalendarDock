@@ -35,6 +35,7 @@ interface SettingsState extends AppSettings {
   setCameras: (cameras: WyzeCamera[]) => void
   setRachioApiKey: (key: string) => void
   setRinnaiCredentials: (email: string, password: string) => void
+  setTeslaGatewayConfig: (host: string, email: string, password: string) => void
   setMealsGoogleTaskList:  (accountId: string, taskListId: string) => void
   setFridgeGoogleTaskList: (accountId: string, taskListId: string) => void
   setCameraWakeEnabled:    (enabled: boolean) => void
@@ -72,6 +73,7 @@ const defaults: AppSettings = {
     { kind: 'item', pageId: 'cameras'     },
     { kind: 'item', pageId: 'sprinklers'  },
     { kind: 'item', pageId: 'waterheater' },
+    { kind: 'item', pageId: 'tesla'       },
   ],
   slideshow: {
     durationSec: 8,
@@ -112,6 +114,9 @@ const defaults: AppSettings = {
   rachioApiKey: '',
   rinnaiEmail: '',
   rinnaiPassword: '',
+  teslaGatewayHost:     '',
+  teslaGatewayEmail:    '',
+  teslaGatewayPassword: '',
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
   mealsFontSize: 1,
@@ -342,6 +347,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setRinnaiCredentials: (email, password) => {
     window.api.settings.setRinnaiCredentials(email, password)
     set({ rinnaiEmail: email, rinnaiPassword: password })
+  },
+
+  setTeslaGatewayConfig: (host, email, password) => {
+    window.api.settings.setTeslaGatewayConfig(host, email, password)
+    set({ teslaGatewayHost: host, teslaGatewayEmail: email, teslaGatewayPassword: password })
   },
 
   setMealsGoogleTaskList: (accountId, taskListId) => {

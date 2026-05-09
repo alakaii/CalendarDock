@@ -28,7 +28,7 @@ const FLYOUT_CELL_W   = 124   // matches w-28 (112px) + gap
 
 const NAV_PAGES: AppPage[] = [
   'calendar', 'chores', 'meals', 'photos',
-  'lists', 'cameras', 'sprinklers', 'waterheater',
+  'lists', 'cameras', 'sprinklers', 'waterheater', 'tesla',
 ]
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -108,6 +108,14 @@ const SprinklerIcon = () => (
       d="M3 15a4 4 0 004 4h9a5 5 0 10-4.584-6.975A4.002 4.002 0 003 15z" />
   </svg>
 )
+const PowerwallIcon = () => (
+  <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+    <rect x="6" y="3" width="12" height="18" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path strokeLinecap="round" d="M10 3V2h4v1" />
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M11 9l-2 4h3l-2 4 5-6h-3l2-2h-3z" />
+  </svg>
+)
 const WaterHeaterIcon = () => (
   <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <rect x="3" y="1" width="18" height="19" rx="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -137,6 +145,7 @@ const PAGE_INFO: Record<AppPage, { label: string; Icon: () => JSX.Element }> = {
   cameras:     { label: 'Wyze Camera', Icon: CameraIcon },
   sprinklers:  { label: 'Sprinklers', Icon: SprinklerIcon },
   waterheater: { label: 'Water',      Icon: WaterHeaterIcon },
+  tesla:       { label: 'Powerwall',  Icon: PowerwallIcon },
   settings:    { label: 'Settings',   Icon: SettingsIcon },
 }
 

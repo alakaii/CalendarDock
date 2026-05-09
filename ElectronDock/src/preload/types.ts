@@ -137,7 +137,7 @@ export interface StandbyLayout {
 
 // ---- New for UI redesign ----
 
-export type AppPage = 'calendar' | 'chores' | 'meals' | 'photos' | 'lists' | 'settings' | 'cameras' | 'sprinklers' | 'waterheater'
+export type AppPage = 'calendar' | 'chores' | 'meals' | 'photos' | 'lists' | 'settings' | 'cameras' | 'sprinklers' | 'waterheater' | 'tesla'
 
 export type ChoresMode = 'local' | 'google'
 export type ListsMode  = 'local' | 'google'
@@ -218,6 +218,32 @@ export interface RachioDevice {
   status: string
   zones: RachioZone[]
   activeZoneId?: string
+}
+
+// ---- Tesla Powerwall ----
+
+export interface TeslaEnergyStatus {
+  /** Solar production, kW. Always >= 0. */
+  solarKw: number
+  /** Home/load consumption, kW. Always >= 0. */
+  loadKw: number
+  /**
+   * Battery instantaneous power, kW.
+   * Positive = discharging (powering the home).
+   * Negative = charging (storing energy).
+   */
+  batteryKw: number
+  /**
+   * Grid instantaneous power, kW.
+   * Positive = importing from grid.
+   * Negative = exporting to grid.
+   */
+  gridKw: number
+  /** Battery state of charge, 0–100 */
+  percentage: number
+  /** Number of Powerwall units in the site */
+  batteryCount: number
+  gridStatus: 'up' | 'down' | 'transition'
 }
 
 // ---- Rinnai ----
@@ -312,6 +338,10 @@ export interface AppSettings {
   rachioApiKey:     string
   rinnaiEmail:      string
   rinnaiPassword:   string
+  // Tesla Powerwall (local Gateway) — host can be IP or hostname, no scheme
+  teslaGatewayHost:     string
+  teslaGatewayEmail:    string
+  teslaGatewayPassword: string
   // Meals Google Tasks link (optional)
   mealsGoogleAccountId:  string
   mealsGoogleTaskListId: string
@@ -420,6 +450,7 @@ export interface CalendarDockAPI {
     setCameras:          (cameras: WyzeCamera[]) => Promise<void>
     setRachioApiKey:     (key: string) => Promise<void>
     setRinnaiCredentials:(email: string, password: string) => Promise<void>
+    setTeslaGatewayConfig:(host: string, email: string, password: string) => Promise<void>
     setMealsGoogleTaskList:  (accountId: string, taskListId: string) => Promise<void>
     setFridgeGoogleTaskList: (accountId: string, taskListId: string) => Promise<void>
     setCameraWakeEnabled:    (enabled: boolean) => Promise<void>
@@ -461,6 +492,10 @@ export interface CalendarDockAPI {
     getDevices:       () => Promise<RinnaiDevice[]>
     setTemperature:   (thingName: string, temp: number) => Promise<void>
     setRecirculation: (thingName: string, enabled: boolean, durationMinutes?: number) => Promise<void>
+  }
+  tesla: {
+    getStatus:      () => Promise<TeslaEnergyStatus>
+    testConnection: (host: string, email: string, password: string) => Promise<void>
   }
   ring: {
     /** Begin login. If 2FA is required, status returns 'needs-2fa' and Ring sends a code. */

@@ -217,6 +217,13 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
   )
 
   ipcMain.handle(
+    'settings:set-tesla-gateway-config',
+    async (_event, { host, email, password }: { host: string; email: string; password: string }) => {
+      settingsService.setTeslaGatewayConfig(host, email, password)
+    }
+  )
+
+  ipcMain.handle(
     'settings:set-meals-google-task-list',
     async (_event, { accountId, taskListId }: { accountId: string; taskListId: string }) => {
       settingsService.setMealsGoogleTaskList(accountId, taskListId)

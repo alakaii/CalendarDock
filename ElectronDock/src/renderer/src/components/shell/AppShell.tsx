@@ -10,6 +10,7 @@ import SettingsPage from '../pages/SettingsPage'
 import CamerasPage from '../pages/CamerasPage'
 import SprinklersPage from '../pages/SprinklersPage'
 import WaterHeaterPage from '../pages/WaterHeaterPage'
+import TeslaPage from '../pages/TeslaPage'
 
 export default function AppShell() {
   const activePage = useUIStore((s) => s.activePage)
@@ -35,6 +36,7 @@ export default function AppShell() {
           {activePage === 'cameras'     && <CamerasPage />}
           {activePage === 'sprinklers'  && <SprinklersPage />}
           {activePage === 'waterheater' && <WaterHeaterPage />}
+          {activePage === 'tesla'       && <TeslaPage />}
           {activePage === 'settings'    && <SettingsPage />}
         </main>
       </div>

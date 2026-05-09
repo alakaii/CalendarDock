@@ -56,6 +56,7 @@ const defaults: StoredSettings = {
     { kind: 'item', pageId: 'cameras'     },
     { kind: 'item', pageId: 'sprinklers'  },
     { kind: 'item', pageId: 'waterheater' },
+    { kind: 'item', pageId: 'tesla'       },
   ] as SidebarSlot[],
   slideshow: {
     durationSec: 8,
@@ -96,6 +97,9 @@ const defaults: StoredSettings = {
   rachioApiKey: '',
   rinnaiEmail: '',
   rinnaiPassword: '',
+  teslaGatewayHost:     '',
+  teslaGatewayEmail:    '',
+  teslaGatewayPassword: '',
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
   mealsFontSize: 1,
@@ -352,6 +356,12 @@ export const settingsService = {
   setRinnaiCredentials(email: string, password: string): void {
     store.set('rinnaiEmail', email)
     store.set('rinnaiPassword', password)
+  },
+
+  setTeslaGatewayConfig(host: string, email: string, password: string): void {
+    store.set('teslaGatewayHost',     host)
+    store.set('teslaGatewayEmail',    email)
+    store.set('teslaGatewayPassword', password)
   },
 
   // ---- Dropbox ----

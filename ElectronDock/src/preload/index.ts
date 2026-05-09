@@ -74,6 +74,8 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-rachio-api-key', { key }),
     setRinnaiCredentials: (email, password) =>
       ipcRenderer.invoke('settings:set-rinnai-credentials', { email, password }),
+    setTeslaGatewayConfig: (host, email, password) =>
+      ipcRenderer.invoke('settings:set-tesla-gateway-config', { host, email, password }),
     setMealsGoogleTaskList: (accountId, taskListId) =>
       ipcRenderer.invoke('settings:set-meals-google-task-list', { accountId, taskListId }),
     setCameraWakeEnabled: (enabled) =>
@@ -136,6 +138,11 @@ const api: CalendarDockAPI = {
     setTemperature:   (thingName, temp)           => ipcRenderer.invoke('rinnai:set-temperature', { thingName, temp }),
     setRecirculation: (thingName, enabled, durationMinutes) =>
       ipcRenderer.invoke('rinnai:set-recirculation', { thingName, enabled, durationMinutes }),
+  },
+
+  tesla: {
+    getStatus:      ()                       => ipcRenderer.invoke('tesla:get-status'),
+    testConnection: (host, email, password) => ipcRenderer.invoke('tesla:test-connection', { host, email, password }),
   },
 
   ring: {
