@@ -151,8 +151,18 @@ export const settingsService = {
   },
 
   setCalendarColor(calendarId: string, color: string): void {
+    // Legacy: kept so old code paths don't break. Treat as "set both modes".
+    this.setCalendarColorOverride(calendarId, 'light', color)
+    this.setCalendarColorOverride(calendarId, 'dark',  color)
+  },
+
+  setCalendarColorOverride(calendarId: string, mode: 'light' | 'dark', color: string): void {
     const prefs = store.get('calendarPreferences') ?? {}
-    prefs[calendarId] = { ...(prefs[calendarId] ?? {}), colorOverride: color }
+    const cur   = { ...(prefs[calendarId] ?? { visible: true }) }
+    const key   = mode === 'light' ? 'colorOverrideLight' : 'colorOverrideDark'
+    if (color) cur[key] = color
+    else       delete cur[key]
+    prefs[calendarId] = cur
     store.set('calendarPreferences', prefs)
   },
 

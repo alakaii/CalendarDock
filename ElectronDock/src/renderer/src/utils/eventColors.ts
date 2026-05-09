@@ -1,12 +1,11 @@
+import type { CalendarPreference } from '../../../preload/types'
+
 /**
  * Google Calendar's 11-entry event color palette.
  *
  * When a user sets a per-event color (right-click an event → pick a color),
- * the API returns the slot ID (`colorId: "1".."11"`) on the event. The
- * actual hex values come from the /colors endpoint, but they've been
- * stable for years — hardcoding avoids an extra fetch + cache round-trip.
- *
- * These match the vibrant palette shown in the Google Calendar web UI.
+ * the API returns the slot ID (`colorId: "1".."11"`) on the event. The hex
+ * values come from the /colors endpoint; they've been stable for years.
  */
 const GOOGLE_EVENT_COLORS: Record<string, string> = {
   '1':  '#7986cb',  // Lavender
@@ -23,14 +22,22 @@ const GOOGLE_EVENT_COLORS: Record<string, string> = {
 }
 
 /**
- * Resolve the color to render an event with.
- * Per-event override (colorId) wins over the calendar's default color.
+ * Resolve the color to render an event with. Priority:
+ *   1. per-event colorId  (Google Calendar lets you override one event's color)
+ *   2. per-calendar override for the current theme  (our settings)
+ *   3. calendar's default color from the Google API
+ *   4. hard fallback
  */
 export function eventColor(
-  colorId: string | undefined,
-  calendarColor: string | undefined,
+  ev: { colorId?: string } | undefined,
+  cal: { backgroundColor?: string } | undefined,
+  pref: CalendarPreference | undefined,
+  theme: 'light' | 'dark',
   fallback = '#4285F4',
 ): string {
-  if (colorId && GOOGLE_EVENT_COLORS[colorId]) return GOOGLE_EVENT_COLORS[colorId]
-  return calendarColor ?? fallback
+  const id = ev?.colorId
+  if (id && GOOGLE_EVENT_COLORS[id]) return GOOGLE_EVENT_COLORS[id]
+  const override = theme === 'dark' ? pref?.colorOverrideDark : pref?.colorOverrideLight
+  if (override) return override
+  return cal?.backgroundColor ?? fallback
 }

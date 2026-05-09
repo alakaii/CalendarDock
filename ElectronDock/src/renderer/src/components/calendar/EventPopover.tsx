@@ -1,5 +1,7 @@
 import { format, parseISO } from 'date-fns'
 import { TouchButton } from '../shared/TouchButton'
+import { useEffectiveTheme } from '../../hooks/useTheme'
+import { useSettingsStore } from '../../store/settings.slice'
 import { eventColor } from '../../utils/eventColors'
 import type { CalendarEvent, CalendarListItem } from '../../../../preload/types'
 interface EventPopoverProps {
@@ -9,8 +11,11 @@ interface EventPopoverProps {
 }
 
 export default function EventPopover({ event, calendars, onClose }: EventPopoverProps) {
+  const calendarPreferences = useSettingsStore((s) => s.calendarPreferences)
+  const theme               = useEffectiveTheme()
   const cal   = calendars.find((c) => c.id === event.calendarId)
-  const color = eventColor(event.colorId, cal?.backgroundColor)
+  const pref  = calendarPreferences[event.calendarId]
+  const color = eventColor(event, cal, pref, theme)
 
   const formatEventTime = () => {
     if (event.allDay) return 'All day'

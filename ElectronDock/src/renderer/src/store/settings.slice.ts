@@ -6,6 +6,7 @@ interface SettingsState extends AppSettings {
   setCalendarVisible: (calendarId: string, visible: boolean) => void
   setAllCalendarsVisible: (calendarIds: string[], visible: boolean) => void
   setCalendarColor: (calendarId: string, color: string) => void
+  setCalendarColorOverride: (calendarId: string, mode: 'light' | 'dark', color: string) => void
   setCalendarOrder: (ids: string[]) => void
   setMealsFontSize: (size: number) => void
   setFamilyName: (name: string) => void
@@ -174,9 +175,26 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set((s) => ({
       calendarPreferences: {
         ...s.calendarPreferences,
-        [calendarId]: { ...(s.calendarPreferences[calendarId] ?? {}), colorOverride: color }
+        [calendarId]: {
+          ...(s.calendarPreferences[calendarId] ?? { visible: true }),
+          colorOverrideLight: color,
+          colorOverrideDark:  color,
+        }
       }
     }))
+  },
+
+  setCalendarColorOverride: (calendarId, mode, color) => {
+    window.api.settings.setCalendarColorOverride(calendarId, mode, color)
+    set((s) => {
+      const key  = mode === 'light' ? 'colorOverrideLight' : 'colorOverrideDark'
+      const next = { ...(s.calendarPreferences[calendarId] ?? { visible: true }) }
+      if (color) next[key] = color
+      else       delete next[key]
+      return {
+        calendarPreferences: { ...s.calendarPreferences, [calendarId]: next }
+      }
+    })
   },
 
   setCalendarOrder: (ids) => {

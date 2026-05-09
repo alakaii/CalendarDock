@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSettingsStore } from '../store/settings.slice'
 import type { ThemeMode } from '../../../preload/types'
 
@@ -8,32 +8,40 @@ function isDarkHour(): boolean {
   return h >= 20 || h < 7
 }
 
+function resolveDark(mode: ThemeMode): boolean {
+  if (mode === 'dark')  return true
+  if (mode === 'light') return false
+  return isDarkHour()
+}
+
 function applyTheme(dark: boolean) {
-  if (dark) {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
-  }
+  if (dark) document.documentElement.classList.add('dark')
+  else      document.documentElement.classList.remove('dark')
 }
 
 export function useTheme() {
   const themeMode = useSettingsStore((s) => s.themeMode)
 
   useEffect(() => {
-    function update() {
-      let dark: boolean
-      if (themeMode === 'dark') dark = true
-      else if (themeMode === 'light') dark = false
-      else dark = isDarkHour() // 'auto'
-      applyTheme(dark)
-    }
-
+    const update = () => applyTheme(resolveDark(themeMode))
     update()
-
-    if (themeMode !== 'auto') return // no interval needed
-
-    // Re-check once per minute when in auto mode
+    if (themeMode !== 'auto') return
     const id = setInterval(update, 60_000)
     return () => clearInterval(id)
   }, [themeMode])
+}
+
+/** Returns 'light' | 'dark' — the *effective* theme, with 'auto' resolved. */
+export function useEffectiveTheme(): 'light' | 'dark' {
+  const themeMode = useSettingsStore((s) => s.themeMode)
+  const [dark, setDark] = useState<boolean>(() => resolveDark(themeMode))
+
+  useEffect(() => {
+    setDark(resolveDark(themeMode))
+    if (themeMode !== 'auto') return
+    const id = setInterval(() => setDark(resolveDark(themeMode)), 60_000)
+    return () => clearInterval(id)
+  }, [themeMode])
+
+  return dark ? 'dark' : 'light'
 }

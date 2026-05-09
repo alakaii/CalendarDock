@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import AccountsSettings from '../settings/AccountsSettings'
 import CalendarSelector from '../settings/CalendarSelector'
-import CalendarSettings from '../settings/CalendarSettings'
 import ClocksSettings from '../settings/ClocksSettings'
 import WeatherSettings from '../settings/WeatherSettings'
 import PhotoSettings from '../settings/PhotoSettings'
@@ -16,13 +15,12 @@ import RingSettings from '../settings/RingSettings'
 import UpdatesSettings from '../settings/UpdatesSettings'
 
 type Section =
-  | 'general' | 'accounts' | 'calendar' | 'calendars' | 'clocks' | 'weather' | 'photos' | 'standby'
+  | 'general' | 'accounts' | 'calendars' | 'clocks' | 'weather' | 'photos' | 'standby'
   | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras' | 'ring' | 'updates'
 
 const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'general',   label: 'General',     icon: '⚙️' },
   { id: 'accounts',  label: 'Accounts',    icon: '👤' },
-  { id: 'calendar',  label: 'Calendar',    icon: '👆' },
   { id: 'calendars', label: 'Calendars',   icon: '📅' },
   { id: 'clocks',    label: 'Clocks',      icon: '🕒' },
   { id: 'weather',   label: 'Weather',     icon: '🌤' },
@@ -74,7 +72,6 @@ export default function SettingsPage() {
       >
         {section === 'general'   && <GeneralSettings />}
         {section === 'accounts'  && <AccountsSettings />}
-        {section === 'calendar'  && <CalendarSettings />}
         {section === 'calendars' && <CalendarSelector />}
         {section === 'clocks'    && <ClocksSettings />}
         {section === 'weather'   && <WeatherSettings />}

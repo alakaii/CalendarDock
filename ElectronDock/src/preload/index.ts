@@ -23,6 +23,8 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-calendar-visible', { calendarId, visible }),
     setCalendarColor: (calendarId, color) =>
       ipcRenderer.invoke('settings:set-calendar-color', { calendarId, color }),
+    setCalendarColorOverride: (calendarId, mode, color) =>
+      ipcRenderer.invoke('settings:set-calendar-color-override', { calendarId, mode, color }),
     setWeatherLocation: (location) =>
       ipcRenderer.invoke('settings:set-weather-location', { location }),
     setWeatherUnits: (units) =>

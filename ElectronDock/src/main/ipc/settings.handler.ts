@@ -67,6 +67,13 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
   )
 
   ipcMain.handle(
+    'settings:set-calendar-color-override',
+    async (_event, { calendarId, mode, color }: { calendarId: string; mode: 'light' | 'dark'; color: string }) => {
+      settingsService.setCalendarColorOverride(calendarId, mode, color)
+    }
+  )
+
+  ipcMain.handle(
     'settings:set-additional-timezones',
     async (_event, { zones }: { zones: string[] }) => {
       settingsService.setAdditionalTimezones(zones)

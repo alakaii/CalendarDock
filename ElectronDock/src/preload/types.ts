@@ -49,7 +49,10 @@ export interface CreateEventPayload {
 
 export interface CalendarPreference {
   visible: boolean
-  colorOverride?: string
+  /** Per-calendar color override for light theme. Empty/missing = use calendar's default color. */
+  colorOverrideLight?: string
+  /** Per-calendar color override for dark theme. */
+  colorOverrideDark?:  string
 }
 
 export interface WeatherConfig {
@@ -378,6 +381,8 @@ export interface CalendarDockAPI {
     getAll: () => Promise<AppSettings>
     setCalendarVisible: (calendarId: string, visible: boolean) => Promise<void>
     setCalendarColor: (calendarId: string, color: string) => Promise<void>
+    /** Set or clear (color = '') a per-calendar color override for the given theme mode. */
+    setCalendarColorOverride: (calendarId: string, mode: 'light' | 'dark', color: string) => Promise<void>
     setCalendarOrder: (ids: string[]) => Promise<void>
     setMealsFontSize: (size: number) => Promise<void>
     setWeatherLocation: (location: string) => Promise<void>

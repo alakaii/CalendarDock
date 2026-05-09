@@ -5,6 +5,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { EventClickArg, DateClickArg, EventInput } from '@fullcalendar/core'
 import { useCalendars } from '../../hooks/useCalendars'
+import { useEffectiveTheme } from '../../hooks/useTheme'
 import { eventColor } from '../../utils/eventColors'
 import { useCalendarEvents } from '../../hooks/useCalendarEvents'
 import { useSettingsStore } from '../../store/settings.slice'
@@ -33,6 +34,7 @@ export default function CalendarView() {
   const calendarPreferences  = useSettingsStore((s) => s.calendarPreferences)
   const calendarSwipeWeek    = useSettingsStore((s) => s.calendarSwipeWeek)
   const calendarSwipeMonth   = useSettingsStore((s) => s.calendarSwipeMonth)
+  const theme                = useEffectiveTheme()
   const chipHiddenIds        = useUIStore((s) => s.chipHiddenIds)
   const setCalendarDate      = useUIStore((s) => s.setCalendarDate)
   const setCalendarView      = useUIStore((s) => s.setCalendarView)
@@ -104,8 +106,9 @@ export default function CalendarView() {
 
   // Convert to FullCalendar format
   const fcEvents: EventInput[] = visibleEvents.map((ev) => {
-    const cal = calendars.find((c) => c.id === ev.calendarId)
-    const bg  = eventColor(ev.colorId, cal?.backgroundColor)
+    const cal  = calendars.find((c) => c.id === ev.calendarId)
+    const pref = calendarPreferences[ev.calendarId]
+    const bg   = eventColor(ev, cal, pref, theme)
     return {
       id: ev.id,
       title: ev.title,
