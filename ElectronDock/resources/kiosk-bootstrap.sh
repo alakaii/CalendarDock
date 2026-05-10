@@ -54,7 +54,7 @@ cat > /usr/local/bin/calendardock-self-update << 'HELPER'
 #!/bin/bash
 # Invoked from the running app via:
 #   sudo /usr/local/bin/calendardock-self-update <path-to-deb>
-set -euo pipefail
+set -uo pipefail
 DEB="${1:-}"
 if [ -z "$DEB" ] || [ ! -f "$DEB" ]; then
   echo "ERROR: missing or invalid .deb path: '$DEB'" >&2
@@ -67,11 +67,24 @@ case "$DEB" in
     exit 2
     ;;
 esac
+SHIPPED_HELPER="/opt/CalendarDock/resources/calendardock-self-update.sh"
+SELF_PATH="/usr/local/bin/calendardock-self-update"
 echo "Installing $DEB..."
 dpkg -i "$DEB"
 if [ -f /opt/CalendarDock/chrome-sandbox ]; then
   chown root:root /opt/CalendarDock/chrome-sandbox
   chmod 4755     /opt/CalendarDock/chrome-sandbox
+fi
+# Self-update this helper from the freshly-installed package, then re-exec
+# into the new version for the restart phase. Lets future fixes to the
+# restart logic propagate without needing a fresh kiosk-bootstrap run.
+if [ "${CALENDARDOCK_HELPER_REEXEC:-}" != "1" ] && [ -f "$SHIPPED_HELPER" ] \
+   && ! cmp -s "$SHIPPED_HELPER" "$SELF_PATH" 2>/dev/null; then
+  cp "$SHIPPED_HELPER" "$SELF_PATH"
+  chmod 755         "$SELF_PATH"
+  chown root:root   "$SELF_PATH"
+  echo "Re-executing into updated helper for the restart phase..."
+  CALENDARDOCK_HELPER_REEXEC=1 exec "$SELF_PATH" "$DEB"
 fi
 rm -f "$DEB"
 # Hand the stop/start dance to a transient systemd unit so it can't get
@@ -87,14 +100,34 @@ systemd-run \
   --unit=calendardock-self-restart.service \
   --description='Stop, kill orphans, then start calendardock after self-update' \
   /bin/bash -c '
-    set -e
+    log() { logger -t calendardock-self-restart "$*"; echo "$*"; }
     sleep 1
-    systemctl stop calendardock || true
+    log "Stopping calendardock unit"
+    systemctl stop calendardock || log "stop returned non-zero (already stopped?)"
     pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
-    sleep 1
-    systemctl start calendardock
+    log "Waiting for ports 54321/54322 to drain"
+    for i in $(seq 1 40); do
+      if ! ss -tln 2>/dev/null | grep -qE ":(54321|54322)[[:space:]]"; then
+        log "Ports clear after ${i} polls (~$((i * 250))ms)"
+        break
+      fi
+      sleep 0.25
+      [ "$i" = 40 ] && log "WARN ports still bound after 10s; starting anyway"
+    done
+    log "Starting calendardock unit"
+    if systemctl start calendardock; then
+      log "First start succeeded"
+    else
+      log "First start failed; retrying once after 2s"
+      sleep 2
+      if systemctl start calendardock; then
+        log "Retry start succeeded"
+      else
+        log "ERROR Both start attempts failed; relying on RestartSec=5"
+      fi
+    fi
   '
-echo "Done — restart scheduled."
+echo "Done — restart scheduled (logs: journalctl -t calendardock-self-restart)."
 HELPER
 chmod 755 /usr/local/bin/calendardock-self-update
 chown root:root /usr/local/bin/calendardock-self-update
