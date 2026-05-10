@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
+import { useUIStore } from '../../store/ui.slice'
 import { FRAME_W, FRAME_H, FRAME_PX } from '../../hooks/useMotionDetector'
 
 type WizardPhase =
@@ -420,6 +421,21 @@ export default function CameraWakeSettings() {
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             Supports overnight windows (e.g. 21:00 → 06:00 crossing midnight).
           </p>
+
+          {/* Manual override — drop into deep sleep right now, regardless of
+              the schedule above. Auto-clears the next time the user wakes
+              the kiosk via touch. */}
+          <button
+            onClick={() => {
+              useUIStore.getState().setForceDeepSleep(true)
+              useUIStore.getState().setMode('standby')
+            }}
+            className="w-full px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px] transition-colors"
+            style={{ background: '#3b82f6', color: '#fff' }}
+            title="Slideshow + backlight off immediately. Touch screen to wake."
+          >
+            Sleep now
+          </button>
         </div>
       </div>
 

@@ -22,9 +22,10 @@ function isInDeepSleepNow(start: string, end: string): boolean {
 }
 
 export default function CameraWatcher() {
-  const mode       = useUIStore((s) => s.mode)
-  const dayMode    = useUIStore((s) => s.dayMode)
-  const setDayMode = useUIStore((s) => s.setDayMode)
+  const mode             = useUIStore((s) => s.mode)
+  const dayMode          = useUIStore((s) => s.dayMode)
+  const setDayMode       = useUIStore((s) => s.setDayMode)
+  const forceDeepSleep   = useUIStore((s) => s.forceDeepSleep)
 
   const enabled                    = useSettingsStore((s) => s.cameraWakeEnabled)
   const deepSleepStart             = useSettingsStore((s) => s.deepSleepStart)
@@ -43,7 +44,10 @@ export default function CameraWatcher() {
     return () => clearInterval(iv)
   }, [])
 
-  const inDeepSleep = enabled && isInDeepSleepNow(deepSleepStart, deepSleepEnd)
+  // Effective "deep sleep" condition merges the time-of-day window with the
+  // manual override (the Camera Wake "Deep Sleep" button). Either one makes
+  // the backlight cut immediately on entering standby.
+  const inDeepSleep = (enabled && isInDeepSleepNow(deepSleepStart, deepSleepEnd)) || forceDeepSleep
   const inStandby   = mode === 'standby'
 
   // ── Pause downloads when user is actively using the app ──────────────────────
@@ -103,7 +107,10 @@ export default function CameraWatcher() {
   // while in slideshow. The spec is now: standby always winds down.
 
   useEffect(() => {
-    if (!enabled) return
+    // Camera-wake off normally means we don't manage backlight at all. But
+    // the manual "Deep Sleep" button still needs to drive setDisplayPower
+    // even when camera-wake is otherwise disabled.
+    if (!enabled && !forceDeepSleep) return
 
     if (inDeepSleep && inStandby) {
       // Immediate backlight off
