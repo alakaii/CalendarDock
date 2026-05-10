@@ -3,7 +3,7 @@ import { resolve as resolvePath } from 'path'
 import { existsSync } from 'fs'
 import { homedir } from 'os'
 
-import { app, BrowserWindow, protocol, powerSaveBlocker } from 'electron'
+import { app, BrowserWindow, protocol, powerSaveBlocker, session } from 'electron'
 
 // Load credentials from the first .env that exists. In dev this is the
 // project root; on the kiosk it's a stable user-config path that survives
@@ -74,6 +74,19 @@ if (!gotLock) {
     // Prevent display sleep and app suspension — 24/7 kiosk operation
     powerSaveBlocker.start('prevent-display-sleep')
     powerSaveBlocker.start('prevent-app-suspension')
+
+    // Auto-grant camera/microphone permission requests from the renderer.
+    // Without this, navigator.mediaDevices.getUserMedia() returns a black
+    // stream (the Camera Wake calibration's "camera is black" symptom).
+    // We're a packaged kiosk app — the renderer is our own bundle, not a
+    // remote site, so there's nothing untrusted to gate.
+    const grantedPermissions = new Set(['media', 'mediaKeySystem', 'display-capture'])
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+      callback(grantedPermissions.has(permission))
+    })
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+      return grantedPermissions.has(permission)
+    })
 
     const win = createWindow()
 

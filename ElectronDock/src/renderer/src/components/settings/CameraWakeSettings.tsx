@@ -41,6 +41,7 @@ export default function CameraWakeSettings() {
   const [liveScore, setLiveScore]       = useState(0)
   const [peakScore, setPeakScore]       = useState(0)
   const [sustainedSec, setSustainedSec] = useState(0)
+  const [cameraError, setCameraError]   = useState<string | null>(null)
   const motionStartTsRef                = useRef<number | null>(null)
 
   // Camera refs
@@ -53,6 +54,7 @@ export default function CameraWakeSettings() {
   // ── Camera helpers ─────────────────────────────────────────────────────────────
 
   const startCamera = useCallback(async (): Promise<boolean> => {
+    setCameraError(null)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 640 }, height: { ideal: 480 } },
@@ -65,7 +67,21 @@ export default function CameraWakeSettings() {
       }
       return true
     } catch (err) {
-      console.warn('[CameraWake] Camera access denied:', err)
+      // Surface the failure instead of swallowing it. The previous version
+      // returned false silently; the wizard would bail without UI feedback,
+      // leaving the user staring at an empty card with no countdown — which
+      // is exactly how the "camera black, no countdown" symptom looked.
+      console.error('[CameraWake] Camera access failed:', err)
+      const e = err as Error
+      let msg = e.message || 'Could not access the camera.'
+      if (e.name === 'NotAllowedError' || /permission/i.test(msg)) {
+        msg = 'Camera permission denied. The kiosk app needs camera access — restart the app once the next update is installed.'
+      } else if (e.name === 'NotFoundError') {
+        msg = 'No camera detected. Confirm the USB camera is plugged in.'
+      } else if (e.name === 'NotReadableError') {
+        msg = 'Camera is busy — another app is using it. Close other webcam apps and try again.'
+      }
+      setCameraError(msg)
       return false
     }
   }, [])
@@ -532,6 +548,14 @@ export default function CameraWakeSettings() {
                 ? 'Calibration complete. Test detection at different distances or re-calibrate.'
                 : 'Two quick recordings: empty room, then stand at your desired trigger distance.'}
             </p>
+            {cameraError && (
+              <div
+                className="text-sm rounded-lg px-3 py-2"
+                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}
+              >
+                {cameraError}
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={startWizard}
