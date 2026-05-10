@@ -422,20 +422,36 @@ export default function CameraWakeSettings() {
             Supports overnight windows (e.g. 21:00 → 06:00 crossing midnight).
           </p>
 
-          {/* Manual override — drop into deep sleep right now, regardless of
-              the schedule above. Auto-clears the next time the user wakes
-              the kiosk via touch. */}
-          <button
-            onClick={() => {
-              useUIStore.getState().setForceDeepSleep(true)
-              useUIStore.getState().setMode('standby')
-            }}
-            className="w-full px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px] transition-colors"
-            style={{ background: '#3b82f6', color: '#fff' }}
-            title="Slideshow + backlight off immediately. Touch screen to wake."
-          >
-            Sleep now
-          </button>
+          {/* Manual sleep buttons. Both auto-clear on touch wake. */}
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              onClick={() => {
+                // Standby only — slideshow plays, backlight follows the
+                // normal passiveBacklightOffMinutes timer (or immediate
+                // if the deep-sleep window happens to be active right now).
+                useUIStore.getState().setMode('standby')
+              }}
+              className="w-full px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px] transition-colors"
+              style={{ background: '#3b82f6', color: '#fff' }}
+              title="Drop into slideshow. Backlight stays on until the normal sleep timer fires."
+            >
+              Sleep now
+            </button>
+            <button
+              onClick={() => {
+                // Standby + force backlight off immediately, regardless of
+                // the deep-sleep schedule. Equivalent to being inside the
+                // deep-sleep window for one cycle.
+                useUIStore.getState().setForceDeepSleep(true)
+                useUIStore.getState().setMode('standby')
+              }}
+              className="w-full px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px] transition-colors"
+              style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}
+              title="Slideshow + backlight off immediately. Touch screen to wake."
+            >
+              Deep Sleep Now
+            </button>
+          </div>
         </div>
       </div>
 
