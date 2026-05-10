@@ -34,6 +34,17 @@ apt-get install -y --no-install-recommends ffmpeg curl ca-certificates jq
 
 echo "==> Using kiosk user: $KIOSK_USER (uid $KIOSK_UID)"
 
+# ── Docker access for the Wyze bridge ─────────────────────────────────────────
+# The Wyze Bridge runs in a Docker container the app launches via the docker
+# CLI. The CLI talks to /var/run/docker.sock which is owned by root:docker, so
+# the kiosk user has to be in the `docker` group to issue any commands. We
+# only add to a group that already exists — installing Docker itself is left
+# to the operator, since not every kiosk needs Wyze.
+if getent group docker >/dev/null && ! id -nG "$KIOSK_USER" | grep -qw docker; then
+  echo "==> Adding $KIOSK_USER to docker group (Wyze bridge access)..."
+  usermod -aG docker "$KIOSK_USER"
+fi
+
 # ── Disable screensaver / DPMS for kiosk user ─────────────────────────────────
 echo "==> Disabling screensaver / DPMS for $KIOSK_USER..."
 sudo -u "$KIOSK_USER" mkdir -p "/home/$KIOSK_USER/.config/autostart"
