@@ -23,7 +23,6 @@ function isInDeepSleepNow(start: string, end: string): boolean {
 
 export default function CameraWatcher() {
   const mode       = useUIStore((s) => s.mode)
-  const setMode    = useUIStore((s) => s.setMode)
   const dayMode    = useUIStore((s) => s.dayMode)
   const setDayMode = useUIStore((s) => s.setDayMode)
 
@@ -91,9 +90,17 @@ export default function CameraWatcher() {
 
   // ── Backlight management ─────────────────────────────────────────────────────
   //
-  //  Deep sleep + standby  → backlight off immediately
-  //  Passive day + standby → backlight off after passiveBacklightOffMinutes
-  //  Active day or app     → backlight on, cancel any pending timer
+  // Deterministic timing — does NOT depend on the camera's dayMode tracking.
+  // Once the kiosk enters standby (slideshow), the screen is going to sleep:
+  //
+  //   Inside deep sleep window + standby → backlight off immediately
+  //   Outside deep sleep window + standby → backlight off after
+  //                                         passiveBacklightOffMinutes
+  //   App mode (any time)                 → backlight on, cancel pending timer
+  //
+  // Earlier behavior gated the delayed backlight-off on dayMode === 'passive',
+  // which meant a recent motion event could keep the screen lit indefinitely
+  // while in slideshow. The spec is now: standby always winds down.
 
   useEffect(() => {
     if (!enabled) return
@@ -107,7 +114,7 @@ export default function CameraWatcher() {
       return
     }
 
-    if (!inDeepSleep && dayMode === 'passive' && inStandby) {
+    if (!inDeepSleep && inStandby) {
       // Schedule delayed backlight off (skip if already scheduled or already off)
       if (!backlightTimerRef.current && !backlightOffRef.current) {
         backlightTimerRef.current = setTimeout(() => {
@@ -121,7 +128,7 @@ export default function CameraWatcher() {
       return
     }
 
-    // All other states (app mode, active day, camera wake disabled): restore backlight
+    // App mode or camera wake disabled → restore backlight, cancel pending timer
     if (backlightTimerRef.current) {
       clearTimeout(backlightTimerRef.current)
       backlightTimerRef.current = null
@@ -130,7 +137,7 @@ export default function CameraWatcher() {
       backlightOffRef.current = false
       window.api.system.setDisplayPower(true).catch(() => {})
     }
-  }, [enabled, inDeepSleep, inStandby, dayMode, passiveBacklightOffMinutes])
+  }, [enabled, inDeepSleep, inStandby, passiveBacklightOffMinutes])
 
   // ── Hold timer — active → passive after inactivity ──────────────────────────
 
@@ -156,28 +163,20 @@ export default function CameraWatcher() {
 
   // ── Motion handlers ──────────────────────────────────────────────────────────
 
-  const handleMotion = () => {
-    if (inStandby) {
-      // Cancel backlight timer and restore power if needed
-      if (backlightTimerRef.current) {
-        clearTimeout(backlightTimerRef.current)
-        backlightTimerRef.current = null
-      }
-      if (backlightOffRef.current) {
-        backlightOffRef.current = false
-        window.api.system.setDisplayPower(true).catch(() => {})
-      }
-      // Wake to app
-      setMode('app')
-      // Give the renderer a moment then fire a pointer event to reset the inactivity timer
-      setTimeout(() => {
-        window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }))
-      }, 150)
-    } else {
-      // Already in app — just reset the inactivity timer
-      window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }))
-    }
-  }
+  // The camera's job is *just* dayMode switching (passive ↔ active) via
+  // sustained motion in handleFrame below. It deliberately does NOT:
+  //   - wake the screen from standby (touch handles that via StandbyOverlay)
+  //   - keep the screen alive while in app mode (no synthetic pointermove)
+  //
+  // Earlier behavior dispatched a synthetic pointermove on every motion event,
+  // which kept resetting useInactivityTimer and made standby effectively
+  // never fire while a person was anywhere near the camera. The new contract:
+  // touch / pointer / keyboard events are the only things that count as
+  // "user activity" for the inactivity timer.
+  //
+  // The hook still requires an onMotion callback (to know when motion crossed
+  // the user's wake threshold), so we keep this as a no-op for clarity.
+  const handleMotion = () => { /* intentionally no-op */ }
 
   // onFrame: every frame's score is passed here for sustained-motion mode switching.
   // Uses refs so it never becomes stale inside the hook's optsRef.

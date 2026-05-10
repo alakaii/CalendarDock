@@ -10,17 +10,16 @@ import VirtualKeyboard from './components/shell/VirtualKeyboard'
 
 export default function App() {
   const mode                  = useUIStore((s) => s.mode)
-  const dayMode               = useUIStore((s) => s.dayMode)
   const loadSettings          = useSettingsStore((s) => s.loadFromMain)
-  const cameraWakeEnabled     = useSettingsStore((s) => s.cameraWakeEnabled)
-  const passiveStandbyMinutes = useSettingsStore((s) => s.passiveStandbyMinutes)
-  const activeStandbyMinutes  = useSettingsStore((s) => s.activeStandbyMinutes)
   const standbyTimeoutMinutes = useSettingsStore((s) => s.standbyTimeoutMinutes)
 
-  // When camera wake is on, use mode-specific timeouts; otherwise fall back to the manual setting
-  const standbyTimeoutMs = cameraWakeEnabled
-    ? (dayMode === 'active' ? activeStandbyMinutes : passiveStandbyMinutes) * 60_000
-    : standbyTimeoutMinutes * 60_000
+  // Always honor the user's explicit standby timeout. Earlier the value was
+  // overridden by camera-wake's passiveStandbyMinutes / activeStandbyMinutes
+  // when cameraWakeEnabled was true, which made the manual setting in the
+  // UI silently ineffective ("I set 2 min but it sat on calendar for 30").
+  // Camera now only drives status (passive/active dayMode); timing is what
+  // the user typed.
+  const standbyTimeoutMs = standbyTimeoutMinutes * 60_000
 
   // Load settings from main process on startup
   useEffect(() => {
