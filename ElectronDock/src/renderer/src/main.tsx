@@ -14,7 +14,12 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000,
       retry: 2,
-      refetchOnWindowFocus: false
+      refetchOnWindowFocus: false,
+      // Kiosk boot race: the app launches before WiFi associates, so the very
+      // first calendar / weather / Tesla fetch fails with DNS errors. React
+      // Query's built-in 'online' listener will fire all queries again the
+      // moment the network comes back up — no manual retry button required.
+      refetchOnReconnect: true
     }
   }
 })
