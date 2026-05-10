@@ -61,10 +61,10 @@ export default function CameraWakeSettings() {
         audio: false,
       })
       streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
+      // NOTE: don't try to attach to videoRef here. startCamera runs while
+      // phase is still 'idle', and the <video> element isn't rendered until
+      // phase changes (showCamera gates it). The useEffect on showCamera
+      // below picks this up after the next render.
       return true
     } catch (err) {
       // Surface the failure instead of swallowing it. The previous version
@@ -323,6 +323,22 @@ export default function CameraWakeSettings() {
   }
 
   const showCamera = ['countdown-background', 'capturing-background', 'countdown-trigger', 'reading-trigger', 'testing'].includes(phase)
+
+  // Attach the stream to the <video> element after it mounts. We can't do this
+  // inside startCamera() because at that moment phase is still 'idle' and the
+  // element isn't rendered yet — videoRef is null. Once showCamera flips true
+  // and React mounts the video, this effect runs and wires up the source.
+  useEffect(() => {
+    const v = videoRef.current
+    const s = streamRef.current
+    if (!showCamera || !v || !s) return
+    if (v.srcObject === s) return
+    v.srcObject = s
+    v.play().catch((err) => {
+      console.warn('[CameraWake] video.play() failed:', err)
+      setCameraError('Camera stream attached but the video element could not start playing. Try toggling Camera Wake off and on.')
+    })
+  }, [showCamera])
 
   // ── Render ──────────────────────────────────────────────────────────────────────
 
