@@ -66,6 +66,12 @@
       "out/**/*",
       "resources/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "resources/calendardock-self-update.sh",
+        "to": "calendardock-self-update.sh"
+      }
+    ],
     "win": {
       "target": [
         {
