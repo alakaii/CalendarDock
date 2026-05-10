@@ -1,0 +1,298 @@
+TESLA POWERWALL TILE — HANDOFF
+================================
+Branch: claude/add-tesla-battery-tile-VONXT
+Last updated: 2026-05-10
+
+This document captures the full state of the Powerwall integration so a fresh
+local Claude Code session can resume without re-deriving context.
+
+
+WHY WE'RE NOT USING THE LOCAL GATEWAY (/tedapi/)
+-------------------------------------------------
+The repo already contains a complete LOCAL Tesla Gateway integration:
+  - ElectronDock/src/main/services/tesla.service.ts
+  - ElectronDock/src/main/ipc/tesla.handler.ts
+  - ElectronDock/src/renderer/src/components/pages/TeslaPage.tsx
+  - ElectronDock/src/renderer/src/components/settings/TeslaSettings.tsx
+  - Settings keys: teslaGatewayHost, teslaGatewayEmail, teslaGatewayPassword
+
+This DOES NOT WORK on the deployed kiosk because the Powerwall 3 firmware
+restricts /tedapi/ (the new TEDAPI endpoint set, used by PW3) so it only
+accepts requests originating from clients on the Powerwall's own WiFi SSID
+subnet (TeslaPW_NFAYFH, 192.168.91.0/24). Requests from the home LAN
+(192.168.4.x) get HTTP 403 Forbidden.
+
+The legacy /api/login/Basic + /api/meters/aggregates endpoints used in the
+existing tesla.service.ts may still work for older Powerwalls but are NOT
+reliable on PW3.
+
+Options considered:
+  A. Run ethernet to the kiosk and put built-in WiFi on TeslaPW SSID
+     - Free, but requires fishing a cable to the wall-mounted display
+  B. USB WiFi adapter as second radio
+     - $10-15
+  C. Tesla Fleet API (cloud)  ← CHOSEN
+     - Free for personal use under rate limits, no hardware
+
+KIOSK NETWORK STATE
+-------------------
+  Hostname:   pc (pc-Default-string)
+  IP:         192.168.4.43
+  SSH user:   pc
+  WiFi:       wlp2s0 connected to "Hyrule" (home network)
+  Ethernet:   enp1s0 — unplugged
+  Built-in WiFi confirmed via: ssh pc@192.168.4.43 "nmcli device status"
+
+
+TESLA FLEET API SETUP — STATE
+------------------------------
+GitHub Pages site:   https://alakaii.github.io/  (LIVE)
+Repo for site:       alakaii/alakaii.github.io   (Pages: main branch, root)
+
+Tesla Developer App: REGISTERED
+  Allowed Origin URL:    https://alakaii.github.io
+  Allowed Redirect URI:  http://localhost:8585/callback
+  Allowed Returned URL:  (blank)
+  Client ID:             SAVED BY USER (in password manager)
+  Client Secret:         SAVED BY USER (in password manager)
+
+Key pair generated on the kiosk:
+  ~/tesla-fleet/tesla-private.pem            (EC P-256, KEEP ON KIOSK ONLY)
+  ~/tesla-fleet/com.tesla.3p.public-key.pem  (to be hosted on GitHub Pages)
+
+
+REMAINING SETUP STEPS
+=====================
+
+STEP 1 — Host the public key on GitHub Pages
+---------------------------------------------
+On the kiosk, get the public key contents:
+    ssh pc@192.168.4.43 "cat ~/tesla-fleet/com.tesla.3p.public-key.pem"
+
+In the GitHub web UI for the alakaii/alakaii.github.io repo:
+    Add file -> Create new file
+    Filename (paste full path, slashes auto-create folders):
+        .well-known/appspecific/com.tesla.3p.public-key.pem
+    Body: paste the BEGIN PUBLIC KEY ... END PUBLIC KEY block
+    Commit directly to main
+
+Verify (wait ~60s after commit for Pages to deploy):
+    curl https://alakaii.github.io/.well-known/appspecific/com.tesla.3p.public-key.pem
+
+Should return the same public key block. If 404, wait another minute.
+
+
+STEP 2 — Get a partner-level access token
+------------------------------------------
+Replace YOUR_CLIENT_ID and YOUR_CLIENT_SECRET below.
+
+    curl --request POST \
+      --header "Content-Type: application/x-www-form-urlencoded" \
+      --data-urlencode "grant_type=client_credentials" \
+      --data-urlencode "client_id=YOUR_CLIENT_ID" \
+      --data-urlencode "client_secret=YOUR_CLIENT_SECRET" \
+      --data-urlencode "scope=openid energy_device_data offline_access" \
+      --data-urlencode "audience=https://fleet-api.prd.na.vn.cloud.tesla.com" \
+      "https://auth.tesla.com/oauth2/v3/token"
+
+Response will be JSON with an "access_token" field. Save it as PARTNER_TOKEN
+for the next step. Token is valid for 8 hours; only used once for registration.
+
+Note: audience URL is region-specific. North America uses
+fleet-api.prd.na.vn.cloud.tesla.com. EU uses fleet-api.prd.eu.vn.cloud.tesla.com.
+This account is in NA.
+
+
+STEP 3 — Register the partner domain
+-------------------------------------
+    curl --request POST \
+      --header "Authorization: Bearer PARTNER_TOKEN" \
+      --header "Content-Type: application/json" \
+      --data '{"domain": "alakaii.github.io"}' \
+      "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/partner_accounts"
+
+Tesla will fetch
+    https://alakaii.github.io/.well-known/appspecific/com.tesla.3p.public-key.pem
+to verify domain ownership. Response should include the registered domain
+with the public key fingerprint. If it fails, the public key file isn't
+being served correctly — go back to Step 1 verification.
+
+
+STEP 4 — One-time user OAuth flow (gets refresh token)
+-------------------------------------------------------
+This is the flow that actually logs IN to the Tesla account that owns the
+Powerwall. It must be done on a machine with a browser.
+
+4a. Open this URL in a browser (replace CLIENT_ID and pick a random STATE):
+
+    https://auth.tesla.com/oauth2/v3/authorize
+        ?client_id=CLIENT_ID
+        &locale=en-US
+        &prompt=login
+        &redirect_uri=http://localhost:8585/callback
+        &response_type=code
+        &scope=openid+energy_device_data+offline_access
+        &state=RANDOM_STATE_STRING
+
+    (URL above broken across lines for readability — concatenate before pasting)
+
+4b. Sign in with the TESLA ACCOUNT that owns the Powerwall (the account
+    used in the Tesla mobile app). MFA may apply.
+
+4c. Tesla will redirect to:
+        http://localhost:8585/callback?code=AUTH_CODE&state=RANDOM_STATE_STRING
+
+    Browser will show a "can't reach this page" error — that's fine. The
+    auth code is in the URL bar. Copy AUTH_CODE.
+
+    (Better: write a tiny Node/Python script that listens on localhost:8585
+    and captures the code automatically. The next Claude session should
+    write this — see "Suggested OAuth helper" below.)
+
+4d. Exchange auth code for tokens:
+
+    curl --request POST \
+      --header "Content-Type: application/x-www-form-urlencoded" \
+      --data-urlencode "grant_type=authorization_code" \
+      --data-urlencode "client_id=CLIENT_ID" \
+      --data-urlencode "client_secret=CLIENT_SECRET" \
+      --data-urlencode "code=AUTH_CODE" \
+      --data-urlencode "audience=https://fleet-api.prd.na.vn.cloud.tesla.com" \
+      --data-urlencode "redirect_uri=http://localhost:8585/callback" \
+      "https://auth.tesla.com/oauth2/v3/token"
+
+Response:
+    {
+      "access_token":  "...",   // valid 8 hours
+      "refresh_token": "...",   // long-lived; the value to persist
+      "id_token":      "...",
+      "expires_in":    28800,
+      "token_type":    "Bearer"
+    }
+
+THE REFRESH TOKEN IS THE KEY ARTIFACT. Persist it securely on the kiosk
+(electron-store with encryption, or the existing settings.service.ts pattern).
+The access token is short-lived; refresh-token grants get fresh ones.
+
+Refresh grant (used by the running app):
+    curl --request POST \
+      --header "Content-Type: application/x-www-form-urlencoded" \
+      --data-urlencode "grant_type=refresh_token" \
+      --data-urlencode "client_id=CLIENT_ID" \
+      --data-urlencode "refresh_token=REFRESH_TOKEN" \
+      "https://auth.tesla.com/oauth2/v3/token"
+
+
+STEP 5 — Discover the energy_site_id
+-------------------------------------
+    curl --header "Authorization: Bearer ACCESS_TOKEN" \
+      "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/products"
+
+Response includes an array; find the entry with "resource_type":"battery"
+or "energy_site_id" set. Note the energy_site_id (numeric).
+
+
+STEP 6 — The actual data endpoint
+----------------------------------
+    GET https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/energy_sites/{site_id}/live_status
+        Authorization: Bearer ACCESS_TOKEN
+
+Returns (fields most relevant to the existing TeslaEnergyStatus type):
+    percentage_charged    -> percentage
+    solar_power           -> solarKw  (watts; divide by 1000 for kW)
+    battery_power         -> batteryKw  (positive = discharging, same convention)
+    grid_power            -> gridKw    (positive = importing)
+    load_power            -> loadKw
+    grid_status           -> gridStatus mapping ("Active"|"Inactive"|"Unknown")
+    total_pack_energy     -> for derived nominal capacity
+    energy_left           -> kWh remaining
+    timestamp             -> server timestamp
+
+Polling rate: every 60s is plenty. Free tier is generally fine at that rate.
+If you hit 429, back off to 5 minutes.
+
+
+CODE INTEGRATION PLAN
+=====================
+
+The existing tesla.service.ts implements the LOCAL gateway path. Two options:
+
+OPTION A (recommended): Replace tesla.service.ts entirely with Fleet API
+  - The TeslaEnergyStatus return shape can stay the same — minimizes UI
+    changes in TeslaPage.tsx.
+  - Replace the host/email/password settings keys with:
+      teslaFleetClientId        (string, but client_id is public-ish)
+      teslaFleetClientSecret    (string, secret)
+      teslaFleetRefreshToken    (string, secret — set after one-time OAuth)
+      teslaEnergySiteId         (string/number — discovered once and cached)
+      teslaFleetRegion          ('na' | 'eu', default 'na')
+  - In tesla.service.ts:
+      * Manage access token cache (refresh when within 5 min of expiry)
+      * Single getStatus() that calls /products once on first run to learn
+        site_id (cache it), then /live_status on every poll
+      * Handle 401 by force-refreshing the access token once and retrying
+  - TeslaSettings.tsx becomes a "Sign in with Tesla" button + status indicator
+    instead of host/email/password fields. The button kicks off the local
+    OAuth helper (Step 4) inside the Electron app — opens auth URL via shell,
+    listens on localhost:8585 in the main process for the callback, exchanges
+    for tokens, persists refresh token. This is the trickier UI piece.
+
+OPTION B: Keep both, switch by setting
+  - Add a teslaSourceMode setting: 'local' | 'cloud'
+  - More code, more state, more surface area to maintain
+  - Only worth it if local /api/ ever starts working again
+
+Recommend OPTION A.
+
+
+SUGGESTED OAUTH HELPER (for next session to write)
+---------------------------------------------------
+Add a new IPC handler in tesla.handler.ts:
+
+    ipcMain.handle('tesla:start-oauth', async () => {
+      // 1. Generate state, code_verifier (PKCE optional but Tesla supports it)
+      // 2. Start http server on localhost:8585 with one route /callback
+      // 3. shell.openExternal(authorizationUrl)
+      // 4. Wait (with timeout) for callback to receive ?code=
+      // 5. Exchange code for tokens
+      // 6. Persist refresh_token via settings.service.ts
+      // 7. Return success/failure to renderer
+    })
+
+The TeslaSettings panel calls window.api.tesla.startOAuth() on button click.
+
+Reference for similar local-loopback OAuth pattern in this codebase:
+  ElectronDock/src/main/services/auth.service.ts  (Google OAuth flow)
+  ElectronDock/src/main/services/dropbox.service.ts (Dropbox OAuth)
+
+
+TESTING NOTES
+-------------
+- Once refresh token is persisted, all polling can be done from the home
+  LAN (Hyrule WiFi) — Fleet API is cloud, no SSID restriction.
+- First request after long idle may be slow (Tesla cold cache). Don't tighten
+  timeouts below 15s for the first call.
+- In dev (npm run dev on a non-kiosk machine) the OAuth flow works the same;
+  just make sure the redirect URI matches exactly what's registered.
+
+OPEN QUESTIONS (to resolve in next session)
+--------------------------------------------
+- Confirm the user's Tesla account is in the NA region (audience URL above).
+  If they're outside NA, swap to fleet-api.prd.eu.vn.cloud.tesla.com and EU
+  auth domain.
+- Confirm Fleet API free-tier limits during signup vs. expected polling rate.
+  60s poll = 1,440 calls/day. If that exceeds free tier, drop to 5-min poll.
+- Decide whether to delete the local-gateway code path or keep it as
+  Option B fallback.
+
+CONTEXT FOR THE NEXT CLAUDE SESSION
+------------------------------------
+We were in the middle of Step 1 (hosting the public key on GitHub Pages)
+when we paused. Pick up by:
+  1. Confirming the public key file is committed to alakaii.github.io repo
+  2. Running the curl from Step 1 verification
+  3. Walking the user through Steps 2 and 3 (curl commands)
+  4. Writing the OAuth helper as IPC handler before doing Step 4
+     (so Step 4 can be done from inside CalendarDock UI rather than
+     manually with curl)
+  5. Refactoring tesla.service.ts to use Fleet API endpoints
