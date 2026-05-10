@@ -45,4 +45,14 @@ export function bootstrapCredentialsFromEnv(): void {
   if (!cur.ringAccountEmail && env('RING_EMAIL')) {
     settingsService.setRingAccountEmail(env('RING_EMAIL'))
   }
+
+  // Tesla Fleet API client credentials (in-app OAuth still required for tokens).
+  // Re-bootstrap on every start so a corrected/rotated client_secret in .env
+  // takes effect without requiring the user to clear the persisted value.
+  if (env('TESLA_FLEET_CLIENT_ID') && env('TESLA_FLEET_CLIENT_SECRET')) {
+    settingsService.setTeslaFleetClientCredentials(
+      env('TESLA_FLEET_CLIENT_ID'),
+      env('TESLA_FLEET_CLIENT_SECRET'),
+    )
+  }
 }

@@ -1,7 +1,7 @@
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
 import { safeStorage } from 'electron'
-import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot } from '../../preload/types'
+import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, TeslaVehicleConfig } from '../../preload/types'
 
 type StoredSettings = AppSettings & {
   // Accounts with encrypted refresh tokens (base64 encoded, DPAPI encrypted)
@@ -19,6 +19,8 @@ type StoredSettings = AppSettings & {
   dropboxAccountId:             string
   // Ring refresh token stored encrypted — never sent to renderer
   ringEncryptedRefreshToken:    string
+  // Tesla Fleet refresh token stored encrypted — never sent to renderer
+  teslaFleetEncryptedRefreshToken: string
 }
 
 const defaults: StoredSettings = {
@@ -71,7 +73,8 @@ const defaults: StoredSettings = {
     weather: { corner: 'top-left' as const,     enabled: true  },
     events:  { corner: 'top-left' as const,     enabled: true  },
     water:   { corner: 'bottom-right' as const, enabled: true  },
-    priority: ['time', 'weather', 'events', 'water'] as const,
+    tesla:   { corner: 'bottom-left' as const,  enabled: false },
+    priority: ['time', 'weather', 'events', 'water', 'tesla'] as const,
     weatherFields: {
       temperature: true,
       feelsLike:   false,
@@ -85,6 +88,11 @@ const defaults: StoredSettings = {
       recircTemperature:   true,
       outletTemperature:   false,
       inletTemperature:    false,
+    },
+    teslaFields: {
+      batteryPercent: true,
+      powerFlow:      true,
+      gridStatus:     true,
     }
   },
   standbyExitGesture: 'double-tap' as const,
@@ -97,9 +105,14 @@ const defaults: StoredSettings = {
   rachioApiKey: '',
   rinnaiEmail: '',
   rinnaiPassword: '',
-  teslaGatewayHost:     '',
-  teslaGatewayEmail:    '',
-  teslaGatewayPassword: '',
+  teslaFleetClientId:     '',
+  teslaFleetClientSecret: '',
+  teslaFleetRegion:       'na',
+  teslaEnergySiteId:      '',
+  teslaSiteName:          '',
+  teslaConnectedAt:       0,
+  teslaVehicles:          [],
+  teslaFleetEncryptedRefreshToken: '',
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
   mealsFontSize: 1,
@@ -358,10 +371,76 @@ export const settingsService = {
     store.set('rinnaiPassword', password)
   },
 
-  setTeslaGatewayConfig(host: string, email: string, password: string): void {
-    store.set('teslaGatewayHost',     host)
-    store.set('teslaGatewayEmail',    email)
-    store.set('teslaGatewayPassword', password)
+  // ---- Tesla Fleet API ----
+
+  /** Bootstrap-time copy of client_id/secret from .env. No UI for these. */
+  setTeslaFleetClientCredentials(clientId: string, clientSecret: string): void {
+    store.set('teslaFleetClientId',     clientId)
+    store.set('teslaFleetClientSecret', clientSecret)
+  },
+
+  /** Persist the long-lived refresh token after a successful OAuth flow. */
+  setTeslaFleetRefreshToken(refreshToken: string): void {
+    store.set('teslaFleetEncryptedRefreshToken',
+      safeStorage.encryptString(refreshToken).toString('base64'))
+    store.set('teslaConnectedAt', Date.now())
+  },
+
+  /** Returns the decrypted refresh token, or '' if not connected. */
+  getTeslaFleetRefreshToken(): string {
+    const enc = store.get('teslaFleetEncryptedRefreshToken')
+    if (!enc) return ''
+    try {
+      return safeStorage.decryptString(Buffer.from(enc, 'base64'))
+    } catch {
+      return ''
+    }
+  },
+
+  /** Cache the discovered energy site (one /products call per app run is enough). */
+  setTeslaEnergySite(energySiteId: string, siteName: string): void {
+    store.set('teslaEnergySiteId', energySiteId)
+    store.set('teslaSiteName',     siteName)
+  },
+
+  setTeslaFleetRegion(region: 'na' | 'eu'): void {
+    store.set('teslaFleetRegion', region)
+  },
+
+  /**
+   * Reconcile the persisted vehicle list with what /products just returned.
+   * - Keeps the user's `enabled` flag for vehicles still present (matched by id)
+   * - Adds new vehicles as enabled-by-default
+   * - Drops vehicles no longer on the account
+   * Returns the new list so callers can ship it back to the renderer.
+   */
+  mergeTeslaVehicles(latest: TeslaVehicleConfig[]): TeslaVehicleConfig[] {
+    const prev = store.get('teslaVehicles') ?? []
+    const prevById = new Map(prev.map((v) => [v.id, v]))
+    const merged = latest.map((v) => {
+      const existing = prevById.get(v.id)
+      // New vehicle → default enabled. Existing → preserve user's choice.
+      return existing ? { ...v, enabled: existing.enabled } : { ...v, enabled: true }
+    })
+    store.set('teslaVehicles', merged)
+    return merged
+  },
+
+  setTeslaVehicleEnabled(id: string, enabled: boolean): TeslaVehicleConfig[] {
+    const list = (store.get('teslaVehicles') ?? []).map((v) =>
+      v.id === id ? { ...v, enabled } : v
+    )
+    store.set('teslaVehicles', list)
+    return list
+  },
+
+  /** Tear down on disconnect — leave client_id/secret since they come from .env. */
+  clearTeslaFleetSession(): void {
+    store.set('teslaFleetEncryptedRefreshToken', '')
+    store.set('teslaEnergySiteId',  '')
+    store.set('teslaSiteName',      '')
+    store.set('teslaConnectedAt',   0)
+    store.set('teslaVehicles',      [])
   },
 
   // ---- Dropbox ----

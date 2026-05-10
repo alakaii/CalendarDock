@@ -27,3 +27,12 @@ electron-builder-cache/
 
 # Claude Code
 .claude/
+
+# Tesla handoff scratch files (the canonical handoff doc is tesla.txt — tracked.
+# tesla.txt.local and similar are local credential snapshots — never commit.)
+tesla.txt.local
+tesla.txt.*.local
+
+# One-off exploration / discovery scripts and their dumped output.
+# Anything in scratch/ is local-only — refresh tokens, raw API dumps, etc.
+scratch/

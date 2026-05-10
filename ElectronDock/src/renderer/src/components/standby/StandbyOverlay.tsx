@@ -6,17 +6,32 @@ import StandbyTime from './StandbyTime'
 import StandbyWeather from './StandbyWeather'
 import TodayEventsDrawer from './TodayEventsDrawer'
 import StandbyWater from './StandbyWater'
+import StandbyTesla from './StandbyTesla'
 import { usePhotos } from '../../hooks/usePhotos'
 import type { StandbyCorner, StandbyElementId } from '../../../../preload/types'
 
-const CORNER_STYLE: Record<StandbyCorner, CSSProperties> = {
-  'top-left':     { top: '1.5rem',    left: '1.5rem'  },
-  'top-right':    { top: '1.5rem',    right: '1.5rem' },
-  'bottom-left':  { bottom: '1.5rem', left: '1.5rem'  },
-  'bottom-right': { bottom: '1.5rem', right: '1.5rem' },
+// Position + flex behavior keyed by anchor. Center anchors center-align their
+// stack; corners hug their respective edge. Bottom-row anchors stack
+// reverse-column so the highest-priority widget stays nearest the bottom edge
+// (matching the behavior the original 4-corner layout had).
+type AnchorStyle = {
+  position:  CSSProperties
+  flexDir:   'column' | 'column-reverse'
+  align:     'flex-start' | 'center' | 'flex-end'
 }
 
-const ALL_CORNERS: StandbyCorner[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+const ANCHORS: Record<StandbyCorner, AnchorStyle> = {
+  'top-left':      { position: { top: '1.5rem',    left:  '1.5rem' },                                       flexDir: 'column',         align: 'flex-start' },
+  'top-center':    { position: { top: '1.5rem',    left:  '50%',    transform: 'translateX(-50%)' },        flexDir: 'column',         align: 'center'     },
+  'top-right':     { position: { top: '1.5rem',    right: '1.5rem' },                                       flexDir: 'column',         align: 'flex-end'   },
+  'left-center':   { position: { top: '50%',       left:  '1.5rem', transform: 'translateY(-50%)' },        flexDir: 'column',         align: 'flex-start' },
+  'right-center':  { position: { top: '50%',       right: '1.5rem', transform: 'translateY(-50%)' },        flexDir: 'column',         align: 'flex-end'   },
+  'bottom-left':   { position: { bottom: '1.5rem', left:  '1.5rem' },                                       flexDir: 'column-reverse', align: 'flex-start' },
+  'bottom-center': { position: { bottom: '1.5rem', left:  '50%',    transform: 'translateX(-50%)' },        flexDir: 'column-reverse', align: 'center'     },
+  'bottom-right':  { position: { bottom: '1.5rem', right: '1.5rem' },                                       flexDir: 'column-reverse', align: 'flex-end'   },
+}
+
+const ALL_CORNERS = Object.keys(ANCHORS) as StandbyCorner[]
 
 // Minimum horizontal pixels to count as a swipe
 const SWIPE_THRESHOLD = 50
@@ -73,11 +88,19 @@ export default function StandbyOverlay() {
     }
   }
 
-  // Merge in water default for installs that pre-date this field
+  // Merge in newer-element defaults for installs that pre-date these fields.
+  // (electron-store keeps the first-run defaults forever; settings.service
+  // changes don't retroactively update existing config.json files.)
   const safeLayout = {
     ...layout,
-    water: layout.water ?? { corner: 'bottom-right' as StandbyCorner, enabled: true },
-    priority: layout.priority.includes('water') ? layout.priority : [...layout.priority, 'water'],
+    water: layout.water ?? { corner: 'bottom-right' as StandbyCorner, enabled: true  },
+    tesla: layout.tesla ?? { corner: 'bottom-left'  as StandbyCorner, enabled: false },
+    priority: ((): StandbyElementId[] => {
+      let p = layout.priority
+      if (!p.includes('water')) p = [...p, 'water']
+      if (!p.includes('tesla')) p = [...p, 'tesla']
+      return p
+    })(),
   }
 
   // Build element node map
@@ -86,6 +109,7 @@ export default function StandbyOverlay() {
     weather: safeLayout.weather.enabled ? <StandbyWeather fields={safeLayout.weatherFields} /> : null,
     events:  safeLayout.events.enabled  ? <TodayEventsDrawer corner={safeLayout.events.corner} /> : null,
     water:   safeLayout.water.enabled   ? <StandbyWater /> : null,
+    tesla:   safeLayout.tesla.enabled   ? <StandbyTesla /> : null,
   }
 
   return (
@@ -106,12 +130,11 @@ export default function StandbyOverlay() {
         focusSafeZonePercent={slideshow.focusSafeZonePercent}
       />
 
-      {/* Corner groups — one absolute flex group per corner */}
+      {/* Anchor groups — one absolute flex group per anchor (8 total: 4 corners + 4 mid-edges) */}
       {ALL_CORNERS.map((corner) => {
-        const isRight  = corner.includes('right')
-        const isBottom = corner.includes('bottom')
+        const anchor = ANCHORS[corner]
 
-        // Collect enabled elements for this corner in priority order
+        // Collect enabled elements for this anchor in priority order
         const items = safeLayout.priority
           .filter((id) => safeLayout[id].enabled && safeLayout[id].corner === corner)
           .map((id) => ({ id, node: elementNodes[id] }))
@@ -124,11 +147,10 @@ export default function StandbyOverlay() {
             key={corner}
             className="absolute z-10"
             style={{
-              ...CORNER_STYLE[corner],
+              ...anchor.position,
               display: 'flex',
-              // Bottom corners: column-reverse so highest-priority stays nearest the corner edge
-              flexDirection: isBottom ? 'column-reverse' : 'column',
-              alignItems: isRight ? 'flex-end' : 'flex-start',
+              flexDirection: anchor.flexDir,
+              alignItems: anchor.align,
               gap: '1rem',
             }}
           >

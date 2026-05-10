@@ -100,8 +100,17 @@ export interface SlideshowSettings {
 // ---- Standby Layout ----
 
 export type StandbyExitGesture = 'single-tap' | 'double-tap'
-export type StandbyCorner      = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
-export type StandbyElementId = 'time' | 'weather' | 'events' | 'water'
+/**
+ * Anchor positions on the standby canvas. Originally just the four corners
+ * (hence the name), now extended with the four mid-edge anchors so widgets
+ * can sit centered along any side. The name is kept for backwards compat
+ * with the values already persisted in electron-store.
+ */
+export type StandbyCorner =
+  | 'top-left'    | 'top-center'    | 'top-right'
+  | 'left-center'                   | 'right-center'
+  | 'bottom-left' | 'bottom-center' | 'bottom-right'
+export type StandbyElementId = 'time' | 'weather' | 'events' | 'water' | 'tesla'
 
 export interface StandbyWeatherFields {
   temperature: boolean
@@ -124,15 +133,26 @@ export interface StandbyWaterFields {
   inletTemperature:       boolean
 }
 
+export interface StandbyTeslaFields {
+  /** State-of-charge percentage (always shown if widget is enabled). */
+  batteryPercent: boolean
+  /** Compact arrow flow: solar/grid/battery → home (or solar → battery, etc.). */
+  powerFlow:      boolean
+  /** Highlight when the grid is down or in transition. Hidden when 'up'. */
+  gridStatus:     boolean
+}
+
 export interface StandbyLayout {
   time:    StandbyElementConfig
   weather: StandbyElementConfig
   events:  StandbyElementConfig
   water:   StandbyElementConfig
+  tesla:   StandbyElementConfig
   /** Priority order — index 0 = highest (rendered first / closest to corner edge) */
   priority:      StandbyElementId[]
   weatherFields: StandbyWeatherFields
   waterFields:   StandbyWaterFields
+  teslaFields:   StandbyTeslaFields
 }
 
 // ---- New for UI redesign ----
@@ -246,6 +266,35 @@ export interface TeslaEnergyStatus {
   gridStatus: 'up' | 'down' | 'transition'
 }
 
+/** Lightweight connection summary for the Settings panel — no network call. */
+export interface TeslaConnectionStatus {
+  /** True iff a refresh token is persisted. Site info may still be empty until first /products call. */
+  connected: boolean
+  /** Friendly site name from /products (e.g. "My Home"). Empty until first poll resolves. */
+  siteName: string
+  /** ms epoch the OAuth flow last completed. 0 if never. */
+  connectedAt: number
+}
+
+/**
+ * One Tesla vehicle visible on this account, with the user's choice of whether
+ * it should appear on this dock. Populated from /products on connect/refresh;
+ * the `enabled` flag is preserved across refreshes so the user's filter sticks
+ * (extended-family vehicles that share the account but live elsewhere can be
+ * toggled off without code changes).
+ */
+export interface TeslaVehicleConfig {
+  /** Vehicle id_s — stable, what the Fleet API expects in URL paths. */
+  id: string
+  vin: string
+  /** User's name for the car in Tesla (e.g. "Epona"). */
+  displayName: string
+  /** OWNER vs DRIVER — useful so the picker can hint why a car is on the account. */
+  accessType: 'OWNER' | 'DRIVER' | string
+  /** When false, this vehicle is hidden from CalendarDock's tiles. */
+  enabled: boolean
+}
+
 // ---- Rinnai ----
 
 export interface RinnaiDevice {
@@ -338,10 +387,26 @@ export interface AppSettings {
   rachioApiKey:     string
   rinnaiEmail:      string
   rinnaiPassword:   string
-  // Tesla Powerwall (local Gateway) — host can be IP or hostname, no scheme
-  teslaGatewayHost:     string
-  teslaGatewayEmail:    string
-  teslaGatewayPassword: string
+  // Tesla Powerwall — Fleet API (cloud). Local-gateway path was retired
+  // (PW3 firmware locks /tedapi/ to the Powerwall's own SSID, and the
+  // legacy /api/login/Basic credential convention failed on this install).
+  // Client id/secret come from .env via credentials-bootstrap; the refresh
+  // token (encrypted) is set after the in-app OAuth flow.
+  teslaFleetClientId:     string
+  teslaFleetClientSecret: string
+  teslaFleetRegion:       'na' | 'eu'
+  /** Discovered & cached from /products on first call after auth. */
+  teslaEnergySiteId: string
+  /** Site display name from /products (e.g. "My Home"). */
+  teslaSiteName: string
+  /** ms epoch the OAuth flow last completed. 0 = not connected. */
+  teslaConnectedAt: number
+  /**
+   * Vehicles visible on the account from /products. Order is the order Tesla
+   * returned them. The `enabled` flag is preserved across refreshes so the
+   * user's filter (e.g. excluding a family-shared car) sticks.
+   */
+  teslaVehicles: TeslaVehicleConfig[]
   // Meals Google Tasks link (optional)
   mealsGoogleAccountId:  string
   mealsGoogleTaskListId: string
@@ -450,7 +515,6 @@ export interface CalendarDockAPI {
     setCameras:          (cameras: WyzeCamera[]) => Promise<void>
     setRachioApiKey:     (key: string) => Promise<void>
     setRinnaiCredentials:(email: string, password: string) => Promise<void>
-    setTeslaGatewayConfig:(host: string, email: string, password: string) => Promise<void>
     setMealsGoogleTaskList:  (accountId: string, taskListId: string) => Promise<void>
     setFridgeGoogleTaskList: (accountId: string, taskListId: string) => Promise<void>
     setCameraWakeEnabled:    (enabled: boolean) => Promise<void>
@@ -494,8 +558,19 @@ export interface CalendarDockAPI {
     setRecirculation: (thingName: string, enabled: boolean, durationMinutes?: number) => Promise<void>
   }
   tesla: {
-    getStatus:      () => Promise<TeslaEnergyStatus>
-    testConnection: (host: string, email: string, password: string) => Promise<void>
+    getStatus:        () => Promise<TeslaEnergyStatus>
+    /** Kicks off the Fleet API OAuth flow on a localhost loopback. Resolves with site info. */
+    connect:          () => Promise<TeslaConnectionStatus>
+    /** Clears the persisted refresh token + cached site id. */
+    disconnect:       () => Promise<void>
+    /** Lightweight status for the Settings panel — no network call. */
+    getConnectionStatus: () => Promise<TeslaConnectionStatus>
+    /** Vehicles visible on the account, with persisted enable/disable flags. */
+    listVehicles:     () => Promise<TeslaVehicleConfig[]>
+    /** Toggle whether a single vehicle is shown on this dock. Returns the updated list. */
+    setVehicleEnabled:(id: string, enabled: boolean) => Promise<TeslaVehicleConfig[]>
+    /** Force a re-fetch of /products. Use after adding a new car to the account. */
+    refreshProducts:  () => Promise<TeslaVehicleConfig[]>
   }
   ring: {
     /** Begin login. If 2FA is required, status returns 'needs-2fa' and Ring sends a code. */

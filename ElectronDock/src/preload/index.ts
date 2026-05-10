@@ -74,9 +74,7 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-rachio-api-key', { key }),
     setRinnaiCredentials: (email, password) =>
       ipcRenderer.invoke('settings:set-rinnai-credentials', { email, password }),
-    setTeslaGatewayConfig: (host, email, password) =>
-      ipcRenderer.invoke('settings:set-tesla-gateway-config', { host, email, password }),
-    setMealsGoogleTaskList: (accountId, taskListId) =>
+setMealsGoogleTaskList: (accountId, taskListId) =>
       ipcRenderer.invoke('settings:set-meals-google-task-list', { accountId, taskListId }),
     setCameraWakeEnabled: (enabled) =>
       ipcRenderer.invoke('settings:set-camera-wake-enabled', { enabled }),
@@ -141,8 +139,13 @@ const api: CalendarDockAPI = {
   },
 
   tesla: {
-    getStatus:      ()                       => ipcRenderer.invoke('tesla:get-status'),
-    testConnection: (host, email, password) => ipcRenderer.invoke('tesla:test-connection', { host, email, password }),
+    getStatus:           () => ipcRenderer.invoke('tesla:get-status'),
+    connect:             () => ipcRenderer.invoke('tesla:connect'),
+    disconnect:          () => ipcRenderer.invoke('tesla:disconnect'),
+    getConnectionStatus: () => ipcRenderer.invoke('tesla:get-connection-status'),
+    listVehicles:        () => ipcRenderer.invoke('tesla:list-vehicles'),
+    setVehicleEnabled:   (id, enabled) => ipcRenderer.invoke('tesla:set-vehicle-enabled', { id, enabled }),
+    refreshProducts:     () => ipcRenderer.invoke('tesla:refresh-products'),
   },
 
   ring: {

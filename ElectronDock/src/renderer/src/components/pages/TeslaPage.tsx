@@ -1,8 +1,13 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSettingsStore } from '../../store/settings.slice'
 import type { TeslaEnergyStatus } from '../../../../preload/types'
 
-const POLL_MS = 10_000
+// Tesla Fleet API "Data" tier is metered at 500 reqs/$1. 10-min polling
+// is ~4,320 calls/month → ~$8.50, comfortably under the $10 dev credit.
+// Tightening to 60s would cost ~$86/mo and is *not* worth it for a glanceable
+// energy-flow tile that doesn't change meaningfully on shorter timescales.
+const POLL_MS = 10 * 60 * 1000
 
 const SolarIcon = ({ className = 'w-7 h-7' }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -35,6 +40,17 @@ function fmtKw(kw: number): string {
   const abs = Math.abs(kw)
   if (abs < 0.05) return '0 kW'
   return `${abs.toFixed(1)} kW`
+}
+
+function fmtRelative(updatedAt: number): string {
+  if (!updatedAt) return ''
+  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000))
+  if (seconds < 30) return 'Just now'
+  if (seconds < 60) return 'Less than a minute ago'
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  return `${hours}h ago`
 }
 
 function FlowTile({
@@ -115,25 +131,38 @@ function NotConfigured() {
         Tesla Powerwall not configured
       </p>
       <p className="text-sm text-center max-w-md">
-        Go to Settings → Accounts to add your Powerwall Gateway IP and credentials.
+        Go to Settings → Powerwall and sign in with Tesla.
       </p>
     </div>
   )
 }
 
 export default function TeslaPage() {
-  const teslaGatewayHost = useSettingsStore((s) => s.teslaGatewayHost)
+  // Polled queries are gated on whether the OAuth flow has ever completed.
+  // teslaConnectedAt is 0 until first sign-in and cleared on disconnect.
+  const connected = useSettingsStore((s) => s.teslaConnectedAt > 0)
 
-  const { data, isLoading, error, refetch } = useQuery<TeslaEnergyStatus>({
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery<TeslaEnergyStatus>({
     queryKey: ['tesla-status'],
     queryFn: () => window.api.tesla.getStatus(),
     refetchInterval: POLL_MS,
     staleTime: POLL_MS / 2,
-    enabled: !!teslaGatewayHost,
+    // Always re-fetch on page open so the "last updated" stamp matches the
+    // moment the user looked at the page. One extra $0.002 Data-tier call
+    // per open is well under the $10/mo dev credit even at hundreds of opens.
+    refetchOnMount: 'always',
+    enabled: connected,
     retry: 1,
   })
 
-  if (!teslaGatewayHost) return <NotConfigured />
+  // Re-render every 30s so the relative "X min ago" stays current between polls.
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => forceTick((n) => n + 1), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
+  if (!connected) return <NotConfigured />
 
   if (isLoading && !data) {
     return (
@@ -190,7 +219,24 @@ export default function TeslaPage() {
                 Off-grid
               </span>
             )}
-            <span>Updates every {POLL_MS / 1000}s</span>
+            <span title={`Updates every ${Math.round(POLL_MS / 60_000)} min`}>
+              {isFetching ? 'Updating…' : fmtRelative(dataUpdatedAt)}
+            </span>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              aria-label="Refresh"
+              className="p-1.5 rounded-full transition-opacity disabled:opacity-40 hover:opacity-80"
+              style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
+            >
+              <svg
+                className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
           </div>
         </div>
 

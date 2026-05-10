@@ -35,7 +35,6 @@ interface SettingsState extends AppSettings {
   setCameras: (cameras: WyzeCamera[]) => void
   setRachioApiKey: (key: string) => void
   setRinnaiCredentials: (email: string, password: string) => void
-  setTeslaGatewayConfig: (host: string, email: string, password: string) => void
   setMealsGoogleTaskList:  (accountId: string, taskListId: string) => void
   setFridgeGoogleTaskList: (accountId: string, taskListId: string) => void
   setCameraWakeEnabled:    (enabled: boolean) => void
@@ -88,7 +87,8 @@ const defaults: AppSettings = {
     weather: { corner: 'top-left',     enabled: true },
     events:  { corner: 'top-left',     enabled: true },
     water:   { corner: 'bottom-right', enabled: true },
-    priority: ['time', 'weather', 'events', 'water'],
+    tesla:   { corner: 'bottom-left',  enabled: false },
+    priority: ['time', 'weather', 'events', 'water', 'tesla'],
     weatherFields: {
       temperature: true,
       feelsLike:   false,
@@ -102,6 +102,11 @@ const defaults: AppSettings = {
       recircTemperature:   true,
       outletTemperature:   false,
       inletTemperature:    false,
+    },
+    teslaFields: {
+      batteryPercent: true,
+      powerFlow:      true,
+      gridStatus:     true,
     }
   },
   standbyExitGesture: 'double-tap' as StandbyExitGesture,
@@ -114,9 +119,13 @@ const defaults: AppSettings = {
   rachioApiKey: '',
   rinnaiEmail: '',
   rinnaiPassword: '',
-  teslaGatewayHost:     '',
-  teslaGatewayEmail:    '',
-  teslaGatewayPassword: '',
+  teslaFleetClientId:     '',
+  teslaFleetClientSecret: '',
+  teslaFleetRegion:       'na' as const,
+  teslaEnergySiteId:      '',
+  teslaSiteName:          '',
+  teslaConnectedAt:       0,
+  teslaVehicles:          [],
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
   mealsFontSize: 1,
@@ -349,12 +358,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ rinnaiEmail: email, rinnaiPassword: password })
   },
 
-  setTeslaGatewayConfig: (host, email, password) => {
-    window.api.settings.setTeslaGatewayConfig(host, email, password)
-    set({ teslaGatewayHost: host, teslaGatewayEmail: email, teslaGatewayPassword: password })
-  },
-
-  setMealsGoogleTaskList: (accountId, taskListId) => {
+setMealsGoogleTaskList: (accountId, taskListId) => {
     window.api.settings.setMealsGoogleTaskList(accountId, taskListId)
     set({ mealsGoogleAccountId: accountId, mealsGoogleTaskListId: taskListId })
   },

@@ -1,20 +1,26 @@
 import { useState } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
 import { TouchButton } from '../shared/TouchButton'
-import type { StandbyCorner, StandbyElementId, StandbyWeatherFields, StandbyWaterFields, StandbyExitGesture } from '../../../../preload/types'
+import type { StandbyCorner, StandbyElementId, StandbyWeatherFields, StandbyWaterFields, StandbyTeslaFields, StandbyExitGesture } from '../../../../preload/types'
 
 // ── Corner Picker ─────────────────────────────────────────────────────────────
 
+// 3×3 picker. Corners + mid-edge centers; the middle cell is intentionally
+// empty (no "center-center" anchor — that'd cover the photo slideshow).
 const CORNER_GRID: { id: StandbyCorner; row: number; col: number; label: string }[] = [
-  { id: 'top-left',     row: 1, col: 1, label: '↖' },
-  { id: 'top-right',    row: 1, col: 2, label: '↗' },
-  { id: 'bottom-left',  row: 2, col: 1, label: '↙' },
-  { id: 'bottom-right', row: 2, col: 2, label: '↘' },
+  { id: 'top-left',      row: 1, col: 1, label: '↖' },
+  { id: 'top-center',    row: 1, col: 2, label: '↑' },
+  { id: 'top-right',     row: 1, col: 3, label: '↗' },
+  { id: 'left-center',   row: 2, col: 1, label: '←' },
+  { id: 'right-center',  row: 2, col: 3, label: '→' },
+  { id: 'bottom-left',   row: 3, col: 1, label: '↙' },
+  { id: 'bottom-center', row: 3, col: 2, label: '↓' },
+  { id: 'bottom-right',  row: 3, col: 3, label: '↘' },
 ]
 
 function CornerPicker({ value, onChange }: { value: StandbyCorner; onChange: (c: StandbyCorner) => void }) {
   return (
-    <div className="grid gap-1" style={{ gridTemplateColumns: '28px 28px', gridTemplateRows: '28px 28px' }}>
+    <div className="grid gap-1" style={{ gridTemplateColumns: '28px 28px 28px', gridTemplateRows: '28px 28px 28px' }}>
       {CORNER_GRID.map((c) => (
         <button
           key={c.id}
@@ -72,6 +78,7 @@ const ELEMENT_LABELS: Record<StandbyElementId, string> = {
   weather: 'Weather',
   events:  'Events Today',
   water:   'Water Heater',
+  tesla:   'Powerwall',
 }
 
 const WEATHER_FIELD_LABELS: { key: keyof StandbyWeatherFields; label: string }[] = [
@@ -98,17 +105,36 @@ const DEFAULT_WATER_FIELDS: StandbyWaterFields = {
   inletTemperature:    false,
 }
 
+const TESLA_FIELD_LABELS: { key: keyof StandbyTeslaFields; label: string; desc: string }[] = [
+  { key: 'batteryPercent', label: 'Battery %',     desc: 'State of charge' },
+  { key: 'powerFlow',      label: 'Power Flow',    desc: 'One-line summary, e.g. "Solar → Battery 2.4 kW"' },
+  { key: 'gridStatus',     label: 'Off-grid Alert',desc: 'Pulses when the grid is down or reconnecting' },
+]
+
+const DEFAULT_TESLA_FIELDS: StandbyTeslaFields = {
+  batteryPercent: true,
+  powerFlow:      true,
+  gridStatus:     true,
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function StandbySettings() {
   const standbyTimeoutMinutes = useSettingsStore((s) => s.standbyTimeoutMinutes)
   const rawLayout             = useSettingsStore((s) => s.standbyLayout)
-  // Merge in water defaults for installs that pre-date these fields
+  // Merge in defaults for installs that pre-date the water/tesla widgets
   const layout = {
     ...rawLayout,
-    water:       rawLayout.water       ?? { corner: 'bottom-right' as const, enabled: true },
+    water:       rawLayout.water       ?? { corner: 'bottom-right' as const, enabled: true  },
     waterFields: rawLayout.waterFields ?? DEFAULT_WATER_FIELDS,
-    priority:    rawLayout.priority.includes('water') ? rawLayout.priority : [...rawLayout.priority, 'water'],
+    tesla:       rawLayout.tesla       ?? { corner: 'bottom-left'  as const, enabled: false },
+    teslaFields: rawLayout.teslaFields ?? DEFAULT_TESLA_FIELDS,
+    priority: ((): StandbyElementId[] => {
+      let p = rawLayout.priority
+      if (!p.includes('water')) p = [...p, 'water']
+      if (!p.includes('tesla')) p = [...p, 'tesla']
+      return p
+    })(),
   }
   const exitGesture           = useSettingsStore((s) => s.standbyExitGesture)
   const setStandbyLayout      = useSettingsStore((s) => s.setStandbyLayout)
@@ -176,6 +202,13 @@ export default function StandbySettings() {
       waterFields: { ...layout.waterFields, [key]: !layout.waterFields[key] },
     })
 
+  // ── F: Tesla fields ────────────────────────────────────────────────────────
+  const toggleTeslaField = (key: keyof StandbyTeslaFields) =>
+    setStandbyLayout({
+      ...layout,
+      teslaFields: { ...layout.teslaFields, [key]: !layout.teslaFields[key] },
+    })
+
   const cardStyle = { background: 'var(--card-bg)', border: '1px solid var(--card-border)' }
 
   return (
@@ -214,7 +247,7 @@ export default function StandbySettings() {
           Pick which corner each widget appears in, and toggle it on or off.
         </p>
 
-        {(['time', 'weather', 'events', 'water'] as StandbyElementId[]).map((id) => (
+        {(['time', 'weather', 'events', 'water', 'tesla'] as StandbyElementId[]).map((id) => (
           <div key={id} className="flex items-center gap-4">
             <p className="text-sm font-medium flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>
               {ELEMENT_LABELS[id]}
@@ -330,7 +363,29 @@ export default function StandbySettings() {
         ))}
       </div>
 
-      {/* ── F: Exit Gesture ───────────────────────────────────────────────── */}
+      {/* ── F: Powerwall Display Fields ──────────────────────────────────── */}
+      <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
+        <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Powerwall Display</p>
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Choose which Powerwall details appear in standby. Polling cost is unchanged
+          — the widget reuses the same data the Powerwall page is already fetching.
+        </p>
+
+        {TESLA_FIELD_LABELS.map(({ key, label, desc }) => (
+          <div key={key} className="flex items-center justify-between py-1 gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{label}</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
+            </div>
+            <Toggle
+              checked={layout.teslaFields[key]}
+              onChange={() => toggleTeslaField(key)}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* ── G: Exit Gesture ───────────────────────────────────────────────── */}
       <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
         <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Exit Gesture</p>
         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
