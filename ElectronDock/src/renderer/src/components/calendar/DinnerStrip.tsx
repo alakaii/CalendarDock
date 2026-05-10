@@ -25,7 +25,7 @@ function dateKey(d: Date): string {
  *
  * Tapping any day cell opens a centered modal with a large input — much
  * better for typing on the kiosk's touchscreen + virtual keyboard than a
- * cramped inline input would be. The 🌙 DINNER label on the left still
+ * cramped inline input would be. The 🍽️ DINNER label on the left still
  * routes to the full Meals page for editing the weekly rotation.
  */
 export default function DinnerStrip() {
@@ -82,7 +82,7 @@ export default function DinnerStrip() {
           aria-label="Edit weekly meal rotation"
           title="Edit weekly rotation"
         >
-          <span className="text-[20px] leading-none mb-0.5">🌙</span>
+          <span className="text-[20px] leading-none mb-0.5">🍽️</span>
           <span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#f59e0b' }}>
             Dinner
           </span>
@@ -236,7 +236,7 @@ function DinnerEditModal({
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <span className="text-[40px] leading-none mb-2">🌙</span>
+          <span className="text-[40px] leading-none mb-2">🍽️</span>
           <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#f59e0b' }}>
             Dinner
           </span>
