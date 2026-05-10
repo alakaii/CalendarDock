@@ -5,7 +5,7 @@ import type { CalendarEvent, CalendarListItem, CreateEventPayload } from '../../
 export const calendarService = {
   /** List all sub-calendars for an account */
   async listCalendars(accountId: string): Promise<CalendarListItem[]> {
-    const client = authService.getClient(accountId)
+    const client = await authService.getClient(accountId)
     if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
     const calendar = google.calendar({ version: 'v3', auth: client })
@@ -48,7 +48,7 @@ export const calendarService = {
 
   /** Create a new event */
   async createEvent(payload: CreateEventPayload): Promise<CalendarEvent> {
-    const client = authService.getClient(payload.accountId)
+    const client = await authService.getClient(payload.accountId)
     if (!client) throw new Error(`No OAuth client for account ${payload.accountId}`)
 
     const calendar = google.calendar({ version: 'v3', auth: client })
@@ -81,7 +81,7 @@ async function fetchCalendarEvents(
   timeMin: string,
   timeMax: string
 ): Promise<CalendarEvent[]> {
-  const client = authService.getClient(accountId)
+  const client = await authService.getClient(accountId)
   if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
   const calendar = google.calendar({ version: 'v3', auth: client })

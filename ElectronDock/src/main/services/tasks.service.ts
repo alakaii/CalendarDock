@@ -24,7 +24,7 @@ export interface GTask {
 export const tasksService = {
   /** List all task lists for an account */
   async listTaskLists(accountId: string): Promise<GTaskList[]> {
-    const client = authService.getClient(accountId)
+    const client = await authService.getClient(accountId)
     if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
     const api = google.tasks({ version: 'v1', auth: client })
@@ -43,7 +43,7 @@ export const tasksService = {
     taskListId: string,
     showCompleted = true
   ): Promise<GTask[]> {
-    const client = authService.getClient(accountId)
+    const client = await authService.getClient(accountId)
     if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
     const api = google.tasks({ version: 'v1', auth: client })
@@ -77,7 +77,7 @@ export const tasksService = {
     notes?: string,
     due?: string
   ): Promise<GTask> {
-    const client = authService.getClient(accountId)
+    const client = await authService.getClient(accountId)
     if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
     const api = google.tasks({ version: 'v1', auth: client })
@@ -106,7 +106,7 @@ export const tasksService = {
     taskId: string,
     complete: boolean
   ): Promise<GTask> {
-    const client = authService.getClient(accountId)
+    const client = await authService.getClient(accountId)
     if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
     const api = google.tasks({ version: 'v1', auth: client })
@@ -139,7 +139,7 @@ export const tasksService = {
     taskId: string,
     patch: { title?: string; notes?: string; due?: string }
   ): Promise<GTask> {
-    const client = authService.getClient(accountId)
+    const client = await authService.getClient(accountId)
     if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
     const api = google.tasks({ version: 'v1', auth: client })
@@ -164,7 +164,7 @@ export const tasksService = {
 
   /** Delete a task */
   async deleteTask(accountId: string, taskListId: string, taskId: string): Promise<void> {
-    const client = authService.getClient(accountId)
+    const client = await authService.getClient(accountId)
     if (!client) throw new Error(`No OAuth client for account ${accountId}`)
 
     const api = google.tasks({ version: 'v1', auth: client })

@@ -107,13 +107,68 @@ function waitForCode(port: number): { promise: Promise<string>; cancel: () => vo
   return { promise, cancel }
 }
 
+/**
+ * Wait until Electron's safeStorage layer is actually ready to decrypt.
+ *
+ * On Linux Wayland kiosks, the systemd unit launches calendardock the
+ * moment graphical.target is reached — but gnome-keyring-daemon (or
+ * whatever secret-storage backend safeStorage is binding to) isn't
+ * always running yet at that exact moment. The very first
+ * decryptString() call after a fresh boot fails with "Decryption is
+ * not available", the OAuth clients never get restored, and the
+ * calendar shows nothing until the user closes + reopens (by which
+ * time the keyring is up).
+ *
+ * Polling isEncryptionAvailable until it flips to true is the cheapest
+ * recovery — once it does, decryption works and we can populate the
+ * client map exactly as before. Cap at 30s so a totally-broken
+ * keyring doesn't block startup forever.
+ */
+async function waitForSafeStorageReady(timeoutMs = 30_000): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (safeStorage.isEncryptionAvailable()) return true
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  return safeStorage.isEncryptionAvailable()
+}
+
+/**
+ * Decrypt with a few retries. Even after isEncryptionAvailable goes
+ * true, the very first decrypt occasionally races something inside
+ * the Linux secret-storage stack and throws. Backoff a couple times
+ * before giving up.
+ */
+async function decryptTokenWithRetry(encrypted: string, attempts = 4): Promise<string> {
+  let lastErr: unknown
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return decryptToken(encrypted)
+    } catch (err) {
+      lastErr = err
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 500 * (i + 1)))
+      }
+    }
+  }
+  throw lastErr
+}
+
 export const authService = {
   /** Initialize OAuth clients from stored accounts on startup */
   async initialize(): Promise<void> {
+    // Give safeStorage a chance to come up before we start decrypting.
+    // On a healthy kiosk this returns ~immediately; on a fresh boot it
+    // can take a few seconds while gnome-keyring-daemon spins up.
+    const ready = await waitForSafeStorageReady()
+    if (!ready) {
+      console.error('[auth] safeStorage never became available; OAuth clients will fail to restore')
+    }
+
     const stored = settingsService.get('accounts') ?? []
     for (const account of stored) {
       try {
-        const refreshToken = decryptToken(account.encryptedRefreshToken)
+        const refreshToken = await decryptTokenWithRetry(account.encryptedRefreshToken)
         const client = createOAuthClient()
         client.setCredentials({ refresh_token: refreshToken })
         oauthClients.set(account.id, client)
@@ -123,9 +178,32 @@ export const authService = {
     }
   },
 
-  /** Get OAuth client for an account (used by calendar/tasks services) */
-  getClient(accountId: string): OAuth2Client | null {
-    return oauthClients.get(accountId) ?? null
+  /**
+   * Get OAuth client for an account (used by calendar/tasks services).
+   *
+   * If the client isn't in the in-memory map (because initialize() couldn't
+   * decrypt this account's refresh token at startup — typically the kiosk
+   * boot race where safeStorage isn't ready yet), try once more here.
+   * safeStorage usually warms up within a few seconds, so by the time the
+   * renderer makes its first calendar/tasks call, decryption usually works.
+   */
+  async getClient(accountId: string): Promise<OAuth2Client | null> {
+    const cached = oauthClients.get(accountId)
+    if (cached) return cached
+
+    const stored = (settingsService.get('accounts') ?? []).find((a) => a.id === accountId)
+    if (!stored) return null
+
+    try {
+      const refreshToken = await decryptTokenWithRetry(stored.encryptedRefreshToken)
+      const client = createOAuthClient()
+      client.setCredentials({ refresh_token: refreshToken })
+      oauthClients.set(accountId, client)
+      return client
+    } catch (err) {
+      console.error(`[auth] lazy-restore for account ${accountId} failed:`, err)
+      return null
+    }
   },
 
   /** Start the Google OAuth flow using a loopback HTTP redirect */
