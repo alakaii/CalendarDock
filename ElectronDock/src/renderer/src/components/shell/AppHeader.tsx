@@ -51,8 +51,8 @@ const ChevronRight = () => (
   </svg>
 )
 
-const TodayCalendarIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+const TodayCalendarIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <rect x="3" y="4" width="18" height="18" rx="2" strokeLinecap="round" strokeLinejoin="round" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M16 2v4M8 2v4M3 10h18" />
     <circle cx="12" cy="15.5" r="2.2" fill="currentColor" stroke="none" />
@@ -188,6 +188,9 @@ export default function AppHeader() {
         {/* Calendar navigation — only on the calendar page */}
         {isCalendar && (
           <>
+            {/* Calendar filter — replaces the old row of pills below the header */}
+            <CalendarFilterButton />
+
             {/* Prev / Month·Year label / Next */}
             <div className="flex items-center gap-1">
               <button
@@ -223,19 +226,18 @@ export default function AppHeader() {
               </button>
             </div>
 
-            {/* Today — focuses current week / month */}
+            {/* Today — focuses current week / month. Sized 1.5× the other
+                nav buttons so the "jump back to now" affordance reads as the
+                primary action on a touchscreen. */}
             <button
               onClick={() => navigate('today')}
-              className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95"
+              className="p-2 rounded-lg min-h-[66px] min-w-[66px] flex items-center justify-center transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95"
               style={{ color: 'var(--text-secondary)' }}
               aria-label="Today"
               title="Jump to current week / month"
             >
-              <TodayCalendarIcon />
+              <TodayCalendarIcon className="w-[30px] h-[30px]" />
             </button>
-
-            {/* Calendar filter — replaces the old row of pills below the header */}
-            <CalendarFilterButton />
 
             {/* Week | Month toggle */}
             <div
