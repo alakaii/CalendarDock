@@ -70,6 +70,10 @@
       {
         "from": "resources/calendardock-self-update.sh",
         "to": "calendardock-self-update.sh"
+      },
+      {
+        "from": "resources/calendardock-display-power.sh",
+        "to": "calendardock-display-power.sh"
       }
     ],
     "win": {

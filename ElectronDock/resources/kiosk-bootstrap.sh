@@ -132,10 +132,10 @@ HELPER
 chmod 755 /usr/local/bin/calendardock-self-update
 chown root:root /usr/local/bin/calendardock-self-update
 
-# ── Sudoers rule: kiosk user can run ONLY the helper, no password ─────────────
+# ── Sudoers rule: kiosk user can run ONLY the helpers, no password ────────────
 SUDOERS_KIOSK="/etc/sudoers.d/calendardock-kiosk-update"
 cat > "$SUDOERS_KIOSK" << EOF
-$KIOSK_USER ALL=(root) NOPASSWD: /usr/local/bin/calendardock-self-update /tmp/*.deb
+$KIOSK_USER ALL=(root) NOPASSWD: /usr/local/bin/calendardock-self-update /tmp/*.deb, /usr/local/bin/calendardock-display-power on, /usr/local/bin/calendardock-display-power off
 EOF
 chmod 440 "$SUDOERS_KIOSK"
 

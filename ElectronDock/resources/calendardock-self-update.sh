@@ -59,6 +59,34 @@ if [ "${CALENDARDOCK_HELPER_REEXEC:-}" != "1" ] && [ -f "$SHIPPED_HELPER" ] \
   CALENDARDOCK_HELPER_REEXEC=1 exec "$SELF_PATH" "$DEB"
 fi
 
+# Also deploy the Wayland display-power helper. The app calls this with
+# sudo to drive /sys/class/backlight/ when the kiosk should sleep — xset
+# dpms doesn't work on Wayland sessions. Mirror the self-update helper
+# pattern so the script + sudoers rule auto-propagate on every install
+# (no kiosk-bootstrap re-run needed).
+SHIPPED_DPHELPER="/opt/CalendarDock/resources/calendardock-display-power.sh"
+DPHELPER_PATH="/usr/local/bin/calendardock-display-power"
+if [ -f "$SHIPPED_DPHELPER" ]; then
+  if ! cmp -s "$SHIPPED_DPHELPER" "$DPHELPER_PATH" 2>/dev/null; then
+    echo "Installing display-power helper → $DPHELPER_PATH"
+    cp "$SHIPPED_DPHELPER" "$DPHELPER_PATH"
+    chmod 755 "$DPHELPER_PATH"
+    chown root:root "$DPHELPER_PATH"
+  fi
+  # Make sure the sudoers rule covers both helpers. Idempotent — only
+  # rewrites the file when the current contents don't match the expected.
+  SUDOERS_FILE="/etc/sudoers.d/calendardock-kiosk-update"
+  KIOSK_USER="$(stat -c '%U' /home/*/.config/calendardock 2>/dev/null | head -1)"
+  if [ -n "$KIOSK_USER" ]; then
+    EXPECTED="$KIOSK_USER ALL=(root) NOPASSWD: /usr/local/bin/calendardock-self-update /tmp/*.deb, /usr/local/bin/calendardock-display-power on, /usr/local/bin/calendardock-display-power off"
+    if ! grep -qF "calendardock-display-power" "$SUDOERS_FILE" 2>/dev/null; then
+      echo "Extending sudoers to cover display-power helper"
+      echo "$EXPECTED" > "$SUDOERS_FILE"
+      chmod 440 "$SUDOERS_FILE"
+    fi
+  fi
+fi
+
 echo "Cleaning up..."
 rm -f "$DEB"
 
