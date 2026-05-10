@@ -91,8 +91,12 @@ systemd-run \
     systemctl stop calendardock || log "stop returned non-zero (already stopped?)"
 
     # Belt: catch any Electron orphan that escaped the cgroup (re-parented to
-    # PID 1 before SIGTERM caught up).
-    pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
+    # PID 1 before SIGTERM caught up). Anchor with ^ so the regex only matches
+    # processes whose command line *starts* with the calendardock binary path
+    # — NOT this bash script (whose full command line contains the literal
+    # string `/opt/CalendarDock/calendardock` as a pkill argument and would
+    # otherwise have its own pkill SIGKILL its own parent shell).
+    pkill -9 -f ^/opt/CalendarDock/calendardock 2>/dev/null || true
 
     # Wait for the listening ports to actually be free. The previous fixed
     # `sleep 1` was a guess; on Wayland kiosks Electron'\''s utility

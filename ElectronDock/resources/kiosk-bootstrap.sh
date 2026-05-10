@@ -104,7 +104,7 @@ systemd-run \
     sleep 1
     log "Stopping calendardock unit"
     systemctl stop calendardock || log "stop returned non-zero (already stopped?)"
-    pkill -9 -f /opt/CalendarDock/calendardock 2>/dev/null || true
+    pkill -9 -f ^/opt/CalendarDock/calendardock 2>/dev/null || true
     log "Waiting for ports 54321/54322 to drain"
     for i in $(seq 1 40); do
       if ! ss -tln 2>/dev/null | grep -qE ":(54321|54322)[[:space:]]"; then
