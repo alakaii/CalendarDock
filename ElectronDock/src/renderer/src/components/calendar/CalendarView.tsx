@@ -14,7 +14,6 @@ import { useDragSwipe, type DragAxis } from '../../hooks/useDragSwipe'
 import { calendarBridge } from '../../bridge/calendarBridge'
 import EventPopover from './EventPopover'
 import AddEventModal from './AddEventModal'
-import CalendarPills from '../shell/CalendarPills'
 import type { CalendarEvent } from '../../../../preload/types'
 
 type CalView = 'dayGridMonth' | 'timeGridWeek'
@@ -235,18 +234,6 @@ export default function CalendarView() {
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-surface)' }}>
-      {/* Calendar filter pills row — sits just above the day-of-week header */}
-      <div
-        className="flex-shrink-0"
-        style={{
-          background: 'var(--fc-head-bg)',
-          borderBottom: '1px solid var(--border)',
-          padding: '10px 4px',
-        }}
-      >
-        <CalendarPills variant="distributed" />
-      </div>
-
       {/* FullCalendar — fills all remaining height */}
       <div ref={containerRef} className="flex-1 relative overflow-hidden">
         <div

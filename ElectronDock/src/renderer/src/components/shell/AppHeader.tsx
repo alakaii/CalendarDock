@@ -6,6 +6,7 @@ import { useUIStore } from '../../store/ui.slice'
 import { calendarBridge } from '../../bridge/calendarBridge'
 import type { CalView } from '../../store/ui.slice'
 import { getSeasonalGradient } from '../../utils/seasonalGradient'
+import CalendarFilterButton from '../calendar/CalendarFilterButton'
 import {
   systemTimezone,
   timeInZone,
@@ -232,6 +233,9 @@ export default function AppHeader() {
             >
               <TodayCalendarIcon />
             </button>
+
+            {/* Calendar filter — replaces the old row of pills below the header */}
+            <CalendarFilterButton />
 
             {/* Week | Month toggle */}
             <div
