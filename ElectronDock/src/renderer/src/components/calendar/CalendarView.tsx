@@ -14,6 +14,7 @@ import { useDragSwipe, type DragAxis } from '../../hooks/useDragSwipe'
 import { calendarBridge } from '../../bridge/calendarBridge'
 import EventPopover from './EventPopover'
 import AddEventModal from './AddEventModal'
+import DinnerStrip from './DinnerStrip'
 import type { CalendarEvent } from '../../../../preload/types'
 
 type CalView = 'dayGridMonth' | 'timeGridWeek'
@@ -273,6 +274,9 @@ export default function CalendarView() {
           />
         </div>
       </div>
+
+      {/* Dinner plans — reuses the vertical space the calendar filter pills used to take */}
+      <DinnerStrip />
 
       {selectedEvent && (
         <EventPopover
