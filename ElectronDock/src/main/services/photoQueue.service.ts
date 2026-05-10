@@ -288,38 +288,55 @@ export const photoQueueService = {
 
     try {
       const settings = settingsService.getAll()
-      if (!settings.dropboxEnabled) { isWorking = false; return }
+      if (!settings.dropboxEnabled) return
 
-      console.log('[photoQueue] Top-up: evicting oldest batch and downloading fresh')
-
-      // 1. Evict the oldest batch
-      const toEvict = downloadedFiles.splice(0, Math.min(batchSize(), downloadedFiles.length))
-      for (const filename of toEvict) {
-        await unlink(join(cacheDir, filename)).catch(() => {})
-      }
-      console.log(`[photoQueue] Evicted ${toEvict.length} files`)
-
-      // 2. Wrap the queue pointer if we've exhausted it — re-shuffle for continued variety
+      // 1. Wrap the queue pointer if we've exhausted it — re-shuffle for continued variety
       if (queuePointer >= shuffledQueue.length && shuffledQueue.length > 0) {
         fisherYates(shuffledQueue)
         queuePointer = 0
       }
 
-      // 3. Download next batch
-      const needed  = cacheSize() - downloadedFiles.length
+      // 2. Pick the next batch to download — DON'T evict anything yet.
+      //    Previous version evicted before downloading; if Dropbox returned
+      //    auth/scope errors, downloadBatch swallowed them per-file (it
+      //    "skips silently") and the cache shrunk to zero over time. Now we
+      //    only evict in proportion to what we actually managed to download,
+      //    so a network/auth outage leaves the cache intact rather than
+      //    draining the slideshow.
       const avail   = shuffledQueue.length > 0 ? shuffledQueue.length - queuePointer : 0
-      const count   = Math.min(needed, batchSize(), avail)
+      const count   = Math.min(batchSize(), avail)
       const toBatch = shuffledQueue.slice(queuePointer, queuePointer + count)
-      queuePointer += count
-
-      if (toBatch.length > 0) {
-        await dropboxService.downloadBatch(toBatch, cacheDir, () => {})
-        const newFiles = toBatch
-          .map((p) => p.split('/').pop()!)
-          .filter((f) => existsSync(join(cacheDir, f)))
-        downloadedFiles.push(...newFiles)
-        console.log(`[photoQueue] Top-up: +${newFiles.length} files → ${downloadedFiles.length} total`)
+      if (toBatch.length === 0) {
+        console.log('[photoQueue] Top-up: nothing to download (queue empty / Dropbox source missing)')
+        return
       }
+      queuePointer += toBatch.length
+
+      // 3. Download. Per-file failures are swallowed by downloadBatch.
+      await dropboxService.downloadBatch(toBatch, cacheDir, () => {})
+      const newFiles = toBatch
+        .map((p) => p.split('/').pop()!)
+        .filter((f) => existsSync(join(cacheDir, f)))
+
+      if (newFiles.length === 0) {
+        console.warn(
+          '[photoQueue] Top-up: download landed 0 files — likely Dropbox auth/scope issue. ' +
+          'Cache kept intact; will retry on next batch of advances.'
+        )
+        return
+      }
+
+      // 4. Evict only as many oldest files as we successfully downloaded —
+      //    bounded by downloadedFiles.length so we never under-flow.
+      const evictCount = Math.min(newFiles.length, downloadedFiles.length)
+      const toEvict    = downloadedFiles.splice(0, evictCount)
+      for (const filename of toEvict) {
+        await unlink(join(cacheDir, filename)).catch(() => {})
+      }
+
+      // 5. Append the freshly-downloaded files
+      downloadedFiles.push(...newFiles)
+      console.log(`[photoQueue] Top-up: +${newFiles.length}, -${toEvict.length} → ${downloadedFiles.length} total`)
       syncPhotos()
     } catch (err) {
       console.error('[photoQueue] Top-up failed:', err)
