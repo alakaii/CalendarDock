@@ -1,0 +1,17 @@
+# Shell scripts must always check out with LF line endings, regardless of
+# the user's core.autocrlf / core.eol setting. CRLF in a script's shebang
+# breaks bash on Linux (`/bin/bash\r: no such file or directory`) — which
+# is what happened when an SCP from a Windows working copy pushed a CRLF
+# helper to the kiosk. Force LF in the repo so working copies on Windows
+# also have LF and SCP / electron-builder ship LF unconditionally.
+*.sh         text eol=lf
+*.bash       text eol=lf
+
+# Same logic for systemd unit / desktop / sudoers fragments we ship as
+# kiosk install assets — they're parsed line-by-line on Linux.
+*.service    text eol=lf
+*.desktop    text eol=lf
+
+# Belt-and-suspenders: anything in resources/ is intended for a Linux
+# runtime and should always be LF.
+ElectronDock/resources/** text eol=lf
