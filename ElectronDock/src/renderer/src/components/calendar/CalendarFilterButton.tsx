@@ -57,13 +57,10 @@ export default function CalendarFilterButton() {
   if (sorted.length === 0) return null
 
   const allShown = shown.length === sorted.length
-  const allHidden = shown.length === 0
 
-  function setAll(hide: boolean) {
+  function showAll() {
     sorted.forEach((c) => {
-      const isHidden = chipHiddenIds.has(c.id)
-      if (hide && !isHidden)  toggleChipHidden(c.id)
-      if (!hide && isHidden)  toggleChipHidden(c.id)
+      if (chipHiddenIds.has(c.id)) toggleChipHidden(c.id)
     })
   }
 
@@ -138,21 +135,23 @@ export default function CalendarFilterButton() {
             overflowY: 'auto',
           }}
         >
-          {/* Header with bulk toggle */}
+          {/* Header — only show "Show all" when at least one is hidden */}
           <div
-            className="flex items-center justify-between px-3 py-2"
+            className="flex items-center justify-between px-4 py-2.5"
             style={{ borderBottom: '1px solid var(--card-border)' }}
           >
-            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>
+            <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>
               Calendars
             </span>
-            <button
-              onClick={() => setAll(allShown)}
-              className="text-xs font-semibold"
-              style={{ color: '#3b82f6' }}
-            >
-              {allShown ? 'Hide all' : allHidden ? 'Show all' : 'Show all'}
-            </button>
+            {!allShown && (
+              <button
+                onClick={showAll}
+                className="text-sm font-semibold"
+                style={{ color: '#3b82f6' }}
+              >
+                Show all
+              </button>
+            )}
           </div>
 
           {sorted.map((cal) => {
@@ -162,41 +161,17 @@ export default function CalendarFilterButton() {
               <button
                 key={cal.id}
                 onClick={() => toggleChipHidden(cal.id)}
-                className="w-full flex items-center gap-3 px-3 py-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                style={{ color: 'var(--text-primary)' }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                style={{ color: 'var(--text-primary)', opacity: isHidden ? 0.45 : 1 }}
                 aria-pressed={!isHidden}
               >
-                {/* Color swatch — solid when shown, ring-only when hidden */}
+                {/* Always-solid color swatch — opacity on the row itself signals on/off */}
                 <span
                   className="inline-block rounded-full flex-shrink-0"
-                  style={{
-                    width: 14, height: 14,
-                    background: isHidden ? 'transparent' : color,
-                    border: `2px solid ${color}`,
-                    opacity: isHidden ? 0.55 : 1,
-                  }}
+                  style={{ width: 18, height: 18, background: color }}
                 />
-                <span
-                  className="flex-1 text-left text-sm truncate"
-                  style={{ opacity: isHidden ? 0.55 : 1 }}
-                  title={cal.summary}
-                >
+                <span className="flex-1 text-left text-base truncate" title={cal.summary}>
                   {cal.summary}
-                </span>
-                {/* Compact checkbox-style indicator on the right */}
-                <span
-                  className="inline-flex items-center justify-center rounded flex-shrink-0"
-                  style={{
-                    width: 18, height: 18,
-                    background: isHidden ? 'transparent' : '#3b82f6',
-                    border: `1.5px solid ${isHidden ? 'var(--card-border)' : '#3b82f6'}`,
-                  }}
-                >
-                  {!isHidden && (
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
                 </span>
               </button>
             )
