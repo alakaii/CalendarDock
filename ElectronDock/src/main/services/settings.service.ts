@@ -21,6 +21,8 @@ type StoredSettings = AppSettings & {
   ringEncryptedRefreshToken:    string
   // Tesla Fleet refresh token stored encrypted — never sent to renderer
   teslaFleetEncryptedRefreshToken: string
+  // Tesla local Gateway (TEDAPI) Wi-Fi password, encrypted — never sent to renderer
+  teslaGatewayEncryptedPassword: string
 }
 
 const defaults: StoredSettings = {
@@ -112,7 +114,11 @@ const defaults: StoredSettings = {
   teslaSiteName:          '',
   teslaConnectedAt:       0,
   teslaVehicles:          [],
+  teslaConnectionMode:    'fleet',
+  teslaGatewayHost:       '192.168.91.1',
+  teslaGatewayConfigured: false,
   teslaFleetEncryptedRefreshToken: '',
+  teslaGatewayEncryptedPassword:   '',
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
   mealsFontSize: 1,
@@ -441,6 +447,36 @@ export const settingsService = {
     store.set('teslaSiteName',      '')
     store.set('teslaConnectedAt',   0)
     store.set('teslaVehicles',      [])
+  },
+
+  // ---- Tesla local Gateway (TEDAPI / direct connect) ----
+
+  setTeslaConnectionMode(mode: 'fleet' | 'local'): void {
+    store.set('teslaConnectionMode', mode)
+  },
+
+  /** Persist the gateway host + Wi-Fi password (password stored encrypted). */
+  setTeslaGatewayConfig(host: string, password: string): void {
+    store.set('teslaGatewayHost', host || '192.168.91.1')
+    store.set('teslaGatewayEncryptedPassword',
+      safeStorage.encryptString(password).toString('base64'))
+    store.set('teslaGatewayConfigured', !!password)
+  },
+
+  /** Returns the decrypted gateway password, or '' if not set. */
+  getTeslaGatewayPassword(): string {
+    const enc = store.get('teslaGatewayEncryptedPassword')
+    if (!enc) return ''
+    try {
+      return safeStorage.decryptString(Buffer.from(enc, 'base64'))
+    } catch {
+      return ''
+    }
+  },
+
+  clearTeslaGateway(): void {
+    store.set('teslaGatewayEncryptedPassword', '')
+    store.set('teslaGatewayConfigured', false)
   },
 
   // ---- Dropbox ----

@@ -3,8 +3,10 @@ import { useSettingsStore } from '../../store/settings.slice'
 import type { TeslaEnergyStatus, StandbyTeslaFields } from '../../../../preload/types'
 
 // Match TeslaPage so React Query dedupes — only one poll runs whether the
-// Powerwall page or standby (or both) is mounted.
-const POLL_MS = 10 * 60 * 1000
+// Powerwall page or standby (or both) is mounted. Local TEDAPI is free, so it
+// polls faster; both components must agree on the interval for the shared key.
+const POLL_MS_CLOUD = 10 * 60 * 1000
+const POLL_MS_LOCAL = 30 * 1000
 
 const DEFAULT_FIELDS: StandbyTeslaFields = {
   batteryPercent: true,
@@ -20,15 +22,19 @@ function fmtKw(kw: number): string {
 }
 
 export default function StandbyTesla() {
-  const connected = useSettingsStore((s) => s.teslaConnectedAt > 0)
+  const mode      = useSettingsStore((s) => s.teslaConnectionMode)
+  const connected = useSettingsStore((s) =>
+    s.teslaConnectionMode === 'local' ? s.teslaGatewayConfigured : s.teslaConnectedAt > 0,
+  )
   const layout    = useSettingsStore((s) => s.standbyLayout)
   const fields    = layout.teslaFields ?? DEFAULT_FIELDS
+  const pollMs    = mode === 'local' ? POLL_MS_LOCAL : POLL_MS_CLOUD
 
   const { data } = useQuery<TeslaEnergyStatus>({
     queryKey: ['tesla-status'],
     queryFn:  () => window.api.tesla.getStatus(),
-    refetchInterval: POLL_MS,
-    staleTime: POLL_MS / 2,
+    refetchInterval: pollMs,
+    staleTime: pollMs / 2,
     enabled: connected,
     retry: 1,
   })

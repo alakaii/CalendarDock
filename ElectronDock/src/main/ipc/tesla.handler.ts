@@ -29,4 +29,20 @@ export function registerTeslaHandlers(): void {
   ipcMain.handle('tesla:refresh-products', async () => {
     return teslaService.refreshProducts()
   })
+
+  ipcMain.handle('tesla:set-connection-mode', async (_event, { mode }: { mode: 'fleet' | 'local' }) => {
+    teslaService.setConnectionMode(mode)
+  })
+
+  ipcMain.handle('tesla:set-gateway-config', async (_event, { host, password }: { host: string; password: string }) => {
+    teslaService.setGatewayConfig(host, password)
+  })
+
+  ipcMain.handle('tesla:clear-gateway-config', async () => {
+    teslaService.clearGatewayConfig()
+  })
+
+  ipcMain.handle('tesla:test-local-connection', async () => {
+    return teslaService.testLocalConnection()
+  })
 }

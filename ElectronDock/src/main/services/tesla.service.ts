@@ -1,10 +1,14 @@
-// Tesla Powerwall — Fleet API (cloud).
+// Tesla Powerwall — Fleet API (cloud), the default connection mode.
 //
-// Why we're not using the local Gateway:
-//   PW3 firmware locks /tedapi/ to clients on the Powerwall's own SSID
-//   (192.168.91.0/24), so home-LAN requests get 403. The legacy
-//   /api/login/Basic + /api/meters/aggregates path tested DEAD on this
-//   install (the email+last5-of-serial credential convention failed).
+// There are two modes (settings.teslaConnectionMode), both producing the same
+// TeslaEnergyStatus shape:
+//   'fleet' — Tesla cloud Fleet API (this file). Works anywhere with internet.
+//   'local' — direct TEDAPI over the Powerwall's own Wi-Fi (tedapi.service.ts).
+//             PW3 firmware locks /tedapi/ to clients associated to the
+//             TeslaPW_… AP (192.168.91.1), so this only works when the machine
+//             is on that AP. getStatus() delegates to tedapiService in this mode.
+// (The legacy home-LAN /api/login/Basic path tested DEAD on this install and
+//  is not used by either mode.)
 //
 // Auth shape:
 //   Standard OAuth2 authorization-code flow on a fixed loopback
@@ -27,7 +31,8 @@ import { existsSync } from 'fs'
 import { randomBytes } from 'crypto'
 import { shell } from 'electron'
 import { settingsService } from './settings.service'
-import type { TeslaEnergyStatus, TeslaConnectionStatus, TeslaVehicleConfig } from '../../preload/types'
+import { tedapiService } from './tedapi.service'
+import type { TeslaEnergyStatus, TeslaConnectionStatus, TeslaVehicleConfig, TeslaLocalTestResult } from '../../preload/types'
 
 // Fixed redirect — must match the developer app's "Allowed Redirect URI".
 const REDIRECT_PORT = 8585
@@ -437,6 +442,17 @@ export const teslaService = {
   // ── Polled by the renderer (TeslaPage) ────────────────────────────────────
 
   async getStatus(): Promise<TeslaEnergyStatus> {
+    // Direct connect: read the local gateway over TEDAPI instead of the cloud.
+    if (settingsService.get('teslaConnectionMode') === 'local') {
+      const host = settingsService.get('teslaGatewayHost') || '192.168.91.1'
+      const pwd  = settingsService.getTeslaGatewayPassword()
+      if (!pwd) {
+        throw new Error('Powerwall direct connect is selected but no Gateway password is saved — set it in Settings → Powerwall.')
+      }
+      return tedapiService.getStatus(host, pwd)
+    }
+
+    // ── Fleet API (cloud) ──
     const { id: siteId } = await getEnergySiteId()
 
     const live = await fleetGet<LiveStatusResponse>(`/api/1/energy_sites/${siteId}/live_status`)
@@ -461,6 +477,35 @@ export const teslaService = {
       percentage:   Math.max(0, Math.min(100, Math.round(pct))),
       batteryCount: cachedBatteryCount,
       gridStatus:   mapGridStatus(r.grid_status),
+    }
+  },
+
+  // ── Direct connect (local Wi-Fi TEDAPI) ───────────────────────────────────
+
+  setConnectionMode(mode: 'fleet' | 'local'): void {
+    settingsService.setTeslaConnectionMode(mode)
+  },
+
+  setGatewayConfig(host: string, password: string): void {
+    settingsService.setTeslaGatewayConfig(host, password)
+    tedapiService.reset() // host/password changed — drop the cached DIN
+  },
+
+  clearGatewayConfig(): void {
+    settingsService.clearTeslaGateway()
+    tedapiService.reset()
+  },
+
+  /** Live local read used by the Settings "Test connection" button. */
+  async testLocalConnection(): Promise<TeslaLocalTestResult> {
+    const host = settingsService.get('teslaGatewayHost') || '192.168.91.1'
+    const pwd  = settingsService.getTeslaGatewayPassword()
+    if (!pwd) return { ok: false, siteName: '', error: 'No Gateway password saved.' }
+    try {
+      const { siteName } = await tedapiService.testConnection(host, pwd)
+      return { ok: true, siteName, error: '' }
+    } catch (err) {
+      return { ok: false, siteName: '', error: err instanceof Error ? err.message : 'Connection failed' }
     }
   },
 }

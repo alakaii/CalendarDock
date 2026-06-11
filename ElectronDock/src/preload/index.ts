@@ -146,6 +146,10 @@ setMealsGoogleTaskList: (accountId, taskListId) =>
     listVehicles:        () => ipcRenderer.invoke('tesla:list-vehicles'),
     setVehicleEnabled:   (id, enabled) => ipcRenderer.invoke('tesla:set-vehicle-enabled', { id, enabled }),
     refreshProducts:     () => ipcRenderer.invoke('tesla:refresh-products'),
+    setConnectionMode:   (mode) => ipcRenderer.invoke('tesla:set-connection-mode', { mode }),
+    setGatewayConfig:    (host, password) => ipcRenderer.invoke('tesla:set-gateway-config', { host, password }),
+    clearGatewayConfig:  () => ipcRenderer.invoke('tesla:clear-gateway-config'),
+    testLocalConnection: () => ipcRenderer.invoke('tesla:test-local-connection'),
   },
 
   ring: {

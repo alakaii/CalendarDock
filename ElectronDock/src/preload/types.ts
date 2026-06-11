@@ -276,6 +276,15 @@ export interface TeslaConnectionStatus {
   connectedAt: number
 }
 
+/** Result of a "Test connection" against the local Powerwall gateway. */
+export interface TeslaLocalTestResult {
+  ok: boolean
+  /** Site name from config.json on success (may be empty if unavailable). */
+  siteName: string
+  /** Human-readable failure reason when ok is false. */
+  error: string
+}
+
 /**
  * One Tesla vehicle visible on this account, with the user's choice of whether
  * it should appear on this dock. Populated from /products on connect/refresh;
@@ -407,6 +416,19 @@ export interface AppSettings {
    * user's filter (e.g. excluding a family-shared car) sticks.
    */
   teslaVehicles: TeslaVehicleConfig[]
+  // Tesla Powerwall — connection mode.
+  //   'fleet' = Tesla cloud Fleet API (works anywhere with internet).
+  //   'local' = direct TEDAPI over the Powerwall's own Wi-Fi (192.168.91.1).
+  //             Only works when this machine is associated to the TeslaPW_… AP.
+  teslaConnectionMode: 'fleet' | 'local'
+  /** Gateway IP/host for direct connect. Default '192.168.91.1'. */
+  teslaGatewayHost: string
+  /**
+   * True once a Gateway Wi-Fi password has been saved. The password itself is
+   * encrypted and lives only in the main process — this flag lets the renderer
+   * gate the tile in local mode without exposing the secret.
+   */
+  teslaGatewayConfigured: boolean
   // Meals Google Tasks link (optional)
   mealsGoogleAccountId:  string
   mealsGoogleTaskListId: string
@@ -571,6 +593,14 @@ export interface CalendarDockAPI {
     setVehicleEnabled:(id: string, enabled: boolean) => Promise<TeslaVehicleConfig[]>
     /** Force a re-fetch of /products. Use after adding a new car to the account. */
     refreshProducts:  () => Promise<TeslaVehicleConfig[]>
+    /** Switch between 'fleet' (cloud) and 'local' (direct Wi-Fi TEDAPI). */
+    setConnectionMode:   (mode: 'fleet' | 'local') => Promise<void>
+    /** Save the local gateway host + Wi-Fi password (password encrypted in main). */
+    setGatewayConfig:    (host: string, password: string) => Promise<void>
+    /** Clear the saved local gateway credentials. */
+    clearGatewayConfig:  () => Promise<void>
+    /** Try a live local read; resolves with the site name on success. */
+    testLocalConnection: () => Promise<TeslaLocalTestResult>
   }
   ring: {
     /** Begin login. If 2FA is required, status returns 'needs-2fa' and Ring sends a code. */

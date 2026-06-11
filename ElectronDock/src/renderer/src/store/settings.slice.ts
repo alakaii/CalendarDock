@@ -45,6 +45,7 @@ interface SettingsState extends AppSettings {
   setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => void
   setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => void
   setRingSnapshotInterval: (seconds: number) => void
+  setTeslaConnectionMode: (mode: 'fleet' | 'local') => void
 }
 
 const defaults: AppSettings = {
@@ -126,6 +127,9 @@ const defaults: AppSettings = {
   teslaSiteName:          '',
   teslaConnectedAt:       0,
   teslaVehicles:          [],
+  teslaConnectionMode:    'fleet',
+  teslaGatewayHost:       '192.168.91.1',
+  teslaGatewayConfigured: false,
   mealsGoogleAccountId:  '',
   mealsGoogleTaskListId: '',
   mealsFontSize: 1,
@@ -410,5 +414,10 @@ setMealsGoogleTaskList: (accountId, taskListId) => {
     const clamped = Math.max(5, Math.floor(seconds))
     window.api.settings.setRingSnapshotInterval(clamped)
     set({ ringSnapshotIntervalSec: clamped })
+  },
+
+  setTeslaConnectionMode: (mode) => {
+    window.api.tesla.setConnectionMode(mode)
+    set({ teslaConnectionMode: mode })
   },
 }))

@@ -3,11 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { useSettingsStore } from '../../store/settings.slice'
 import type { TeslaEnergyStatus } from '../../../../preload/types'
 
-// Tesla Fleet API "Data" tier is metered at 500 reqs/$1. 10-min polling
-// is ~4,320 calls/month → ~$8.50, comfortably under the $10 dev credit.
-// Tightening to 60s would cost ~$86/mo and is *not* worth it for a glanceable
-// energy-flow tile that doesn't change meaningfully on shorter timescales.
-const POLL_MS = 10 * 60 * 1000
+// Fleet API "Data" tier is metered at 500 reqs/$1. 10-min polling is ~4,320
+// calls/month → ~$8.50, comfortably under the $10 dev credit. Tightening to 60s
+// would cost ~$86/mo and isn't worth it for a glanceable tile.
+// Local TEDAPI (direct connect) is free, so poll it far more often for a
+// near-live tile.
+const POLL_MS_CLOUD = 10 * 60 * 1000
+const POLL_MS_LOCAL = 30 * 1000
+
+function fmtInterval(ms: number): string {
+  return ms < 60_000 ? `Updates every ${Math.round(ms / 1000)} s` : `Updates every ${Math.round(ms / 60_000)} min`
+}
 
 const SolarIcon = ({ className = 'w-7 h-7' }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -120,7 +126,7 @@ function BatteryGauge({ percent, charging }: { percent: number; charging: boolea
   )
 }
 
-function NotConfigured() {
+function NotConfigured({ mode }: { mode: 'fleet' | 'local' }) {
   return (
     <div
       className="flex flex-col items-center justify-center h-full gap-3 px-8"
@@ -131,22 +137,29 @@ function NotConfigured() {
         Tesla Powerwall not configured
       </p>
       <p className="text-sm text-center max-w-md">
-        Go to Settings → Powerwall and sign in with Tesla.
+        {mode === 'local'
+          ? 'Go to Settings → Powerwall and enter the Gateway Wi-Fi password for direct connect.'
+          : 'Go to Settings → Powerwall and sign in with Tesla.'}
       </p>
     </div>
   )
 }
 
 export default function TeslaPage() {
-  // Polled queries are gated on whether the OAuth flow has ever completed.
-  // teslaConnectedAt is 0 until first sign-in and cleared on disconnect.
-  const connected = useSettingsStore((s) => s.teslaConnectedAt > 0)
+  // Gating depends on the connection mode:
+  //   fleet → teslaConnectedAt > 0 (OAuth completed; cleared on disconnect)
+  //   local → a Gateway password has been saved (teslaGatewayConfigured)
+  const mode      = useSettingsStore((s) => s.teslaConnectionMode)
+  const connected = useSettingsStore((s) =>
+    s.teslaConnectionMode === 'local' ? s.teslaGatewayConfigured : s.teslaConnectedAt > 0,
+  )
+  const pollMs = mode === 'local' ? POLL_MS_LOCAL : POLL_MS_CLOUD
 
   const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery<TeslaEnergyStatus>({
     queryKey: ['tesla-status'],
     queryFn: () => window.api.tesla.getStatus(),
-    refetchInterval: POLL_MS,
-    staleTime: POLL_MS / 2,
+    refetchInterval: pollMs,
+    staleTime: pollMs / 2,
     // Always re-fetch on page open so the "last updated" stamp matches the
     // moment the user looked at the page. One extra $0.002 Data-tier call
     // per open is well under the $10/mo dev credit even at hundreds of opens.
@@ -162,7 +175,7 @@ export default function TeslaPage() {
     return () => clearInterval(t)
   }, [])
 
-  if (!connected) return <NotConfigured />
+  if (!connected) return <NotConfigured mode={mode} />
 
   if (isLoading && !data) {
     return (
@@ -219,7 +232,7 @@ export default function TeslaPage() {
                 Off-grid
               </span>
             )}
-            <span title={`Updates every ${Math.round(POLL_MS / 60_000)} min`}>
+            <span title={fmtInterval(pollMs)}>
               {isFetching ? 'Updating…' : fmtRelative(dataUpdatedAt)}
             </span>
             <button
