@@ -320,6 +320,37 @@ export interface RinnaiDevice {
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
 
+// ---- iCloud Shared Albums ----
+
+export interface IcloudAlbumStatus {
+  /** The configured URL (or bare token) for this album. */
+  url: string
+  /** Parsed album token (the URL fragment). */
+  token: string
+  /** Photos currently cached from this album. */
+  photoCount: number
+  /** Last sync error for this album ('' = last sync succeeded). */
+  error: string
+}
+
+export interface IcloudStatus {
+  enabled: boolean
+  albums: IcloudAlbumStatus[]
+  /** ms epoch of the last completed sync attempt. 0 = never. */
+  lastSync: number
+  /** Total photos cached across all albums. */
+  photoCount: number
+  /** Aggregate error message from the last sync ('' when all albums succeeded). */
+  lastError: string
+  isSyncing: boolean
+}
+
+export interface IcloudSyncResult {
+  ok: boolean
+  count: number
+  error: string
+}
+
 // ---- Background art ----
 export type ArtMode = 'border' | 'fullscreen'
 export type ArtScaleMode = 'fill' | 'fit' | 'stretch'
@@ -458,6 +489,13 @@ export interface AppSettings {
   dropboxEnabled:      boolean
   dropboxLastSync:     number
   dropboxAccountEmail: string
+  // iCloud Shared Albums (public links). Photos from every listed album are
+  // pulled into a local cache and mixed into the same slideshow pool as
+  // Dropbox photos. Sync bookkeeping (last sync, counts, errors) lives in the
+  // main process — not in this object.
+  /** Full shared-album URLs (https://www.icloud.com/sharedalbum/#TOKEN) or bare tokens. */
+  icloudAlbumUrls:     string[]
+  icloudPhotosEnabled: boolean
   // Camera wake
   cameraWakeEnabled:          boolean
   deepSleepStart:             string    // "HH:MM", default "21:00" — when deep sleep begins
@@ -565,6 +603,8 @@ export interface CalendarDockAPI {
     setActiveDaySettings:    (sustainSeconds: number, holdMinutes: number) => Promise<void>
     setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => Promise<void>
     setRingSnapshotInterval: (seconds: number) => Promise<void>
+    setIcloudAlbumUrls: (urls: string[]) => Promise<void>
+    setIcloudPhotosEnabled: (enabled: boolean) => Promise<void>
   }
   art: {
     /** Serving URL (cdphoto://art/…) of the current fullscreen art, or null. */
@@ -663,6 +703,10 @@ export interface CalendarDockAPI {
     setPaused: (paused: boolean) => Promise<void>
     /** Dawn signal — end of deep sleep. Refreshes Dropbox index + tops up cache. */
     wakeFromDeepSleep: () => Promise<void>
+    /** Pull all configured iCloud Shared Albums now and merge their photos into the pool. */
+    syncIcloud: () => Promise<IcloudSyncResult>
+    /** Current iCloud sync status (per-album counts/errors, last sync). */
+    getIcloudStatus: () => Promise<IcloudStatus>
   }
   weather: {
     fetch: () => Promise<WeatherData>

@@ -27,6 +27,7 @@ import { authService } from './services/auth.service'
 import { photosService } from './services/photos.service'
 import { settingsService } from './services/settings.service'
 import { photoQueueService } from './services/photoQueue.service'
+import { icloudService } from './services/icloud.service'
 import { wyzeBridgeService } from './services/wyze-bridge.service'
 import { ringService } from './services/ring.service'
 import { bootstrapCredentialsFromEnv } from './services/credentials-bootstrap.service'
@@ -118,6 +119,9 @@ if (!gotLock) {
 
     // Initialize rolling photo cache queue (handles both local and Dropbox modes)
     await photoQueueService.initialize(win)
+
+    // Fold the iCloud Shared Album cache into the slideshow pool (resyncs if stale)
+    icloudService.initialize(win).catch((err) => console.warn('[icloud] init failed:', err))
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

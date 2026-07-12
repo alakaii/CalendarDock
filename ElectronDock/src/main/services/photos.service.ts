@@ -5,7 +5,21 @@ import { extname, basename } from 'path'
 const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'])
 
 let watcher: FSWatcher | null = null
-let photoList: string[] = []
+// The slideshow pool is the union of two independent sources:
+//   mainList   — the watched primary folder (local folder or the Dropbox cache)
+//   icloudList — the iCloud Shared Album cache (set by icloudService)
+// The renderer always receives the merged list so photos mix automatically.
+let mainList: string[]   = []
+let icloudList: string[] = []
+let currentWin: BrowserWindow | null = null
+
+function union(): string[] {
+  return [...mainList, ...icloudList]
+}
+
+function emit(): void {
+  currentWin?.webContents.send('photos:list-updated', union())
+}
 
 export const photosService = {
   startWatcher(folderPath: string, win: BrowserWindow): void {
@@ -13,7 +27,8 @@ export const photosService = {
       watcher.close()
     }
 
-    photoList = []
+    currentWin = win
+    mainList = []
 
     watcher = chokidar.watch(folderPath, {
       ignored: /(^|[/\\])\../, // ignore dotfiles
@@ -26,16 +41,16 @@ export const photosService = {
       .on('add', (filePath) => {
         if (isSupportedPhoto(filePath)) {
           const name = basename(filePath)
-          if (!photoList.includes(name)) {
-            photoList.push(name)
-            win.webContents.send('photos:list-updated', [...photoList])
+          if (!mainList.includes(name)) {
+            mainList.push(name)
+            emit()
           }
         }
       })
       .on('unlink', (filePath) => {
         const name = basename(filePath)
-        photoList = photoList.filter((f) => f !== name)
-        win.webContents.send('photos:list-updated', [...photoList])
+        mainList = mainList.filter((f) => f !== name)
+        emit()
       })
       .on('error', (err) => console.error('Photo watcher error:', err))
   },
@@ -48,17 +63,29 @@ export const photosService = {
   },
 
   getList(): string[] {
-    return [...photoList]
+    return union()
   },
 
   /**
-   * Replace the photo list in one shot and notify the renderer.
-   * Used by photoQueueService after bulk disk operations so correctness
-   * doesn't depend on the chokidar watcher emitting every change.
+   * Replace the primary (watched-folder) list in one shot and notify the
+   * renderer. Used by photoQueueService after bulk disk operations so
+   * correctness doesn't depend on the chokidar watcher emitting every change.
    */
   setList(filenames: string[], win: BrowserWindow): void {
-    photoList = [...filenames]
-    win.webContents.send('photos:list-updated', [...photoList])
+    currentWin = win
+    mainList = [...filenames]
+    emit()
+  },
+
+  /**
+   * Replace the iCloud Shared Album sub-list and notify the renderer. The
+   * iCloud cache lives in its own folder (userData/icloud-cache) outside the
+   * watched primary folder, so it's supplied explicitly by icloudService.
+   */
+  setIcloudList(filenames: string[], win: BrowserWindow): void {
+    currentWin = win
+    icloudList = [...filenames]
+    emit()
   },
 
   restartWatcher(folderPath: string, win: BrowserWindow): void {

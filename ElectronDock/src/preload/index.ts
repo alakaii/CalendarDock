@@ -108,6 +108,10 @@ setMealsGoogleTaskList: (accountId, taskListId) =>
       ipcRenderer.invoke('settings:set-wyze-bridge-config', { email, password, host, apiId, apiKey }),
     setRingSnapshotInterval: (seconds) =>
       ipcRenderer.invoke('settings:set-ring-snapshot-interval', { seconds }),
+    setIcloudAlbumUrls: (urls) =>
+      ipcRenderer.invoke('settings:set-icloud-album-urls', { urls }),
+    setIcloudPhotosEnabled: (enabled) =>
+      ipcRenderer.invoke('settings:set-icloud-photos-enabled', { enabled }),
   },
 
   art: {
@@ -207,6 +211,8 @@ setMealsGoogleTaskList: (accountId, taskListId) =>
     advance:           () => ipcRenderer.invoke('photos:advance'),
     setPaused:         (paused) => ipcRenderer.invoke('photos:set-paused', { paused }),
     wakeFromDeepSleep: () => ipcRenderer.invoke('photos:wake-from-deep-sleep'),
+    syncIcloud:        () => ipcRenderer.invoke('photos:sync-icloud'),
+    getIcloudStatus:   () => ipcRenderer.invoke('photos:icloud-status'),
     onListUpdated: (cb) => {
       ipcRenderer.on('photos:list-updated', (_event, list) => cb(list))
     },

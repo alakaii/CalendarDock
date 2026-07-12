@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
 import { TouchButton } from '../shared/TouchButton'
-import type { SlideshowSortOrder, SlideshowTransition } from '../../../../preload/types'
+import type { SlideshowSortOrder, SlideshowTransition, IcloudStatus } from '../../../../preload/types'
 
 export default function PhotoSettings() {
   const photoFolderPath      = useSettingsStore((s) => s.photoFolderPath)
@@ -18,6 +18,12 @@ export default function PhotoSettings() {
 
   const dropboxConnected = !!dropboxAccountEmail
 
+  // iCloud Shared Albums state
+  const icloudAlbumUrls        = useSettingsStore((s) => s.icloudAlbumUrls)
+  const icloudPhotosEnabled    = useSettingsStore((s) => s.icloudPhotosEnabled)
+  const setIcloudAlbumUrls     = useSettingsStore((s) => s.setIcloudAlbumUrls)
+  const setIcloudPhotosEnabled = useSettingsStore((s) => s.setIcloudPhotosEnabled)
+
   // Local mutable Dropbox config state
   const [folderInput, setFolderInput] = useState(dropboxFolderPath || '')
   const [photoCount, setPhotoCount]   = useState(dropboxPhotoCount ?? 200)
@@ -25,6 +31,11 @@ export default function PhotoSettings() {
   const [syncPct, setSyncPct]         = useState(0)
   const [syncStatus, setSyncStatus]   = useState('')
   const [loadedCount, setPhotoCount2] = useState<number | null>(null)
+
+  // iCloud local state
+  const [icloudUrlInput, setIcloudUrlInput] = useState('')
+  const [icloudSyncing, setIcloudSyncing]   = useState(false)
+  const [icloudStatus, setIcloudStatus]     = useState<IcloudStatus | null>(null)
 
   useEffect(() => {
     window.api.dropbox.getStatus().then((s) => setSyncing(s.isSyncing))
@@ -86,6 +97,52 @@ export default function PhotoSettings() {
       await window.api.settings.setPhotoFolder(path)
       await loadSettings()
     }
+  }
+
+  // ── iCloud Shared Albums ──
+  const refreshIcloudStatus = () =>
+    window.api.photos.getIcloudStatus().then((st) => {
+      setIcloudStatus(st)
+      setIcloudSyncing(st.isSyncing)
+    })
+
+  useEffect(() => { refreshIcloudStatus() }, [])
+
+  const handleIcloudAdd = () => {
+    const url = icloudUrlInput.trim()
+    if (!url || icloudAlbumUrls.includes(url)) return
+    setIcloudAlbumUrls([...icloudAlbumUrls, url])
+    setIcloudUrlInput('')
+    // Adding triggers a background sync in main — refresh status shortly after.
+    setTimeout(refreshIcloudStatus, 1000)
+  }
+
+  const handleIcloudRemove = (url: string) => {
+    setIcloudAlbumUrls(icloudAlbumUrls.filter((u) => u !== url))
+    setTimeout(refreshIcloudStatus, 1000)
+  }
+
+  const handleToggleIcloud = () => {
+    setIcloudPhotosEnabled(!icloudPhotosEnabled)
+  }
+
+  const handleIcloudSync = async () => {
+    setIcloudSyncing(true)
+    try {
+      const res = await window.api.photos.syncIcloud()
+      if (!res.ok) console.warn('[icloud] sync error:', res.error)
+    } catch (err) {
+      console.warn('[icloud] sync failed:', err)
+    } finally {
+      setIcloudSyncing(false)
+      await refreshIcloudStatus()
+    }
+  }
+
+  /** Compact display label for an album row: the token if parseable, else the raw URL. */
+  const icloudAlbumLabel = (url: string) => {
+    const hash = url.indexOf('#')
+    return hash >= 0 ? url.slice(hash + 1) : url
   }
 
   const sortOrders: { value: SlideshowSortOrder; label: string; description: string }[] = [
@@ -277,6 +334,114 @@ export default function PhotoSettings() {
           )}
         </section>
       )}
+
+      {/* ── iCloud Shared Albums (mix into the pool alongside the source above) ── */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="text-sm font-medium" style={labelStyle}>iCloud Shared Albums</label>
+            <p className="text-xs mt-0.5" style={subStyle}>
+              Mixes public iCloud shared albums into the slideshow, alongside the source above.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleIcloud}
+            role="switch"
+            aria-checked={icloudPhotosEnabled}
+            className="relative shrink-0 rounded-full transition-colors"
+            style={{
+              width: 46, height: 28,
+              background: icloudPhotosEnabled ? '#3b82f6' : 'var(--border)',
+            }}
+          >
+            <span
+              className="absolute rounded-full bg-white transition-all"
+              style={{ width: 22, height: 22, top: 3, left: icloudPhotosEnabled ? 21 : 3 }}
+            />
+          </button>
+        </div>
+
+        {icloudPhotosEnabled && (
+          <>
+            {/* Add album */}
+            <div className="rounded-xl p-4 space-y-2" style={cardStyle}>
+              <p className="text-sm font-medium" style={labelStyle}>Add a shared album</p>
+              <p className="text-xs" style={subStyle}>
+                In Photos, open the shared album → enable <strong>Public Website</strong> → copy the link
+                (<span className="font-mono">https://www.icloud.com/sharedalbum/#…</span>).
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="https://www.icloud.com/sharedalbum/#B0abc…"
+                  value={icloudUrlInput}
+                  onChange={(e) => setIcloudUrlInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleIcloudAdd()}
+                  className="flex-1 rounded-lg px-3 py-2 text-sm font-mono break-all"
+                  style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                />
+                <TouchButton variant="secondary" onClick={handleIcloudAdd} disabled={!icloudUrlInput.trim()}>
+                  Add
+                </TouchButton>
+              </div>
+            </div>
+
+            {/* Album list */}
+            {icloudAlbumUrls.length > 0 && (
+              <div className="space-y-2">
+                {icloudAlbumUrls.map((url) => {
+                  const st = icloudStatus?.albums.find((a) => a.url === url)
+                  return (
+                    <div key={url} className="rounded-xl p-3 flex items-center gap-3" style={cardStyle}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-mono truncate" style={labelStyle}>{icloudAlbumLabel(url)}</p>
+                        {st?.error ? (
+                          <p className="text-xs mt-0.5 break-all" style={{ color: '#ef4444' }}>{st.error}</p>
+                        ) : (
+                          <p className="text-xs mt-0.5" style={subStyle}>
+                            {(st?.photoCount ?? 0).toLocaleString()} photos
+                          </p>
+                        )}
+                      </div>
+                      <TouchButton variant="destructive" onClick={() => handleIcloudRemove(url)}>
+                        Remove
+                      </TouchButton>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Aggregate status */}
+            <div className="rounded-xl p-4 space-y-1" style={cardStyle}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={subStyle}>Last sync</span>
+                <span className="text-xs font-mono" style={labelStyle}>
+                  {formatLastSync(icloudStatus?.lastSync ?? 0)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-xs" style={subStyle}>Photos cached (all albums)</span>
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                  style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}
+                >
+                  {(icloudStatus?.photoCount ?? 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <TouchButton
+              variant="secondary"
+              onClick={handleIcloudSync}
+              disabled={icloudSyncing || icloudAlbumUrls.length === 0}
+              className="w-full"
+            >
+              {icloudSyncing ? 'Syncing…' : 'Sync Now'}
+            </TouchButton>
+          </>
+        )}
+      </section>
 
       {/* ── Slideshow settings (always shown) ── */}
       <section className="space-y-3">

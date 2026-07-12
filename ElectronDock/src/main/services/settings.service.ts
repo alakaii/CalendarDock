@@ -23,6 +23,12 @@ type StoredSettings = AppSettings & {
   teslaFleetEncryptedRefreshToken: string
   // Tesla local Gateway (TEDAPI) Wi-Fi password, encrypted — never sent to renderer
   teslaGatewayEncryptedPassword: string
+  // iCloud Shared Albums — sync bookkeeping (not part of the renderer AppSettings)
+  icloudLastSync:     number
+  icloudPhotoCount:   number
+  icloudLastError:    string
+  // Per-album (keyed by album token): change-detection ctag + last sync result
+  icloudAlbumMeta:    Record<string, { ctag: string; count: number; error: string }>
 }
 
 const defaults: StoredSettings = {
@@ -135,6 +141,12 @@ const defaults: StoredSettings = {
   dropboxEnabled:      false,
   dropboxLastSync:     0,
   dropboxAccountEmail: '',
+  icloudAlbumUrls:     [],
+  icloudPhotosEnabled: false,
+  icloudLastSync:      0,
+  icloudPhotoCount:    0,
+  icloudLastError:     '',
+  icloudAlbumMeta:     {},
   cameraWakeEnabled:          false,
   deepSleepStart:             '21:00',
   deepSleepEnd:               '06:00',
@@ -545,6 +557,21 @@ export const settingsService = {
   setDropboxLastSync(ts: number): void        { store.set('dropboxLastSync', ts) },
   setDropboxFolderPath(path: string): void    { store.set('dropboxFolderPath', path) },
   setDropboxPhotoCount(count: number): void   { store.set('dropboxPhotoCount', count) },
+
+  // ---- iCloud Shared Albums ----
+
+  setIcloudAlbumUrls(urls: string[]): void    { store.set('icloudAlbumUrls', urls) },
+  setIcloudPhotosEnabled(enabled: boolean): void { store.set('icloudPhotosEnabled', enabled) },
+
+  /** Record a sync pass: total photo count + per-album meta (ctag/count/error). */
+  setIcloudSyncResult(count: number, meta: Record<string, { ctag: string; count: number; error: string }>, error: string): void {
+    store.set('icloudPhotoCount', count)
+    store.set('icloudAlbumMeta',  meta)
+    store.set('icloudLastError',  error)
+    store.set('icloudLastSync',   Date.now())
+  },
+
+  setIcloudError(error: string): void         { store.set('icloudLastError', error) },
 
   setMealsGoogleTaskList(accountId: string, taskListId: string): void {
     store.set('mealsGoogleAccountId',  accountId)

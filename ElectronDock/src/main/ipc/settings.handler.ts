@@ -1,6 +1,7 @@
 import { ipcMain, dialog, app, BrowserWindow } from 'electron'
 import { settingsService } from '../services/settings.service'
 import { photosService } from '../services/photos.service'
+import { icloudService } from '../services/icloud.service'
 import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, ArtMode, ArtScaleMode } from '../../preload/types'
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
@@ -332,6 +333,26 @@ ipcMain.handle(
     'settings:set-ring-snapshot-interval',
     async (_event, { seconds }: { seconds: number }) => {
       settingsService.setRingSnapshotInterval(seconds)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-icloud-album-urls',
+    async (_event, { urls }: { urls: string[] }) => {
+      settingsService.setIcloudAlbumUrls(urls)
+      // Resync so newly added albums download and removed albums' files are
+      // pruned from the cache (sync deletes files whose album key is gone).
+      icloudService.syncIfEnabled(win).catch((err) => console.warn('[icloud] album-list sync failed:', err))
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-icloud-photos-enabled',
+    async (_event, { enabled }: { enabled: boolean }) => {
+      settingsService.setIcloudPhotosEnabled(enabled)
+      // Fold the albums into the pool when enabled, drop them when disabled.
+      if (enabled) icloudService.syncIfEnabled(win).catch((err) => console.warn('[icloud] enable sync failed:', err))
+      else         icloudService.clearList(win)
     }
   )
 }
