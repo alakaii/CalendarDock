@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron'
+import { registerArtHandlers } from './art.handler'
 import { registerDropboxHandlers } from './dropbox.handler'
 import { registerAuthHandlers } from './auth.handler'
 import { registerCalendarHandlers } from './calendar.handler'
@@ -17,6 +18,7 @@ import { registerUpdatesHandlers } from './updates.handler'
 import { registerWeatherHandlers } from './weather.handler'
 
 export function registerIpcHandlers(win: BrowserWindow): void {
+  registerArtHandlers()
   registerAuthHandlers()
   registerDropboxHandlers()
   registerCalendarHandlers()

@@ -87,6 +87,7 @@ export const HEADER_IMAGE_KEY = 'headerImage'
 export default function AppHeader() {
   const units             = useSettingsStore((s) => s.weather.units)
   const timezone          = useSettingsStore((s) => s.timezone)
+  const fullscreenArt     = useSettingsStore((s) => s.artMode === 'fullscreen')
   const additionalZones   = useSettingsStore((s) => s.additionalTimezones)
   const activePage        = useUIStore((s) => s.activePage)
   const calendarDate      = useUIStore((s) => s.calendarDate)
@@ -148,14 +149,14 @@ export default function AppHeader() {
       className="flex items-center px-4 flex-shrink-0 gap-3 relative"
       style={{
         height: 100,
-        background: 'var(--bg-header)',
+        background: 'var(--bg-header-panel)',
         borderBottom: '1px solid var(--border)',
         color: 'var(--text-primary)',
         // overflow visible so the weather forecast popup can extend below
       }}
     >
-      {/* ── Header image (bottom layer) ── */}
-      {headerImage && (
+      {/* ── Header image (bottom layer) — suppressed in fullscreen art mode ── */}
+      {!fullscreenArt && headerImage && (
         <img
           aria-hidden="true"
           src={headerImage}
@@ -165,12 +166,14 @@ export default function AppHeader() {
         />
       )}
 
-      {/* ── Seasonal gradient underlay ── */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{ background: seasonalGradient, zIndex: 1 }}
-      />
+      {/* ── Seasonal gradient underlay — suppressed in fullscreen art mode ── */}
+      {!fullscreenArt && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{ background: seasonalGradient, zIndex: 1 }}
+        />
+      )}
 
       {/* ── Left: page title (non-calendar pages only) ── */}
       {!isCalendar && (

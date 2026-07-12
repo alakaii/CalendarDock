@@ -1,7 +1,7 @@
 import { ipcMain, dialog, app, BrowserWindow } from 'electron'
 import { settingsService } from '../services/settings.service'
 import { photosService } from '../services/photos.service'
-import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot } from '../../preload/types'
+import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, ArtMode, ArtScaleMode } from '../../preload/types'
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
   ipcMain.handle('settings:get-all', async () => {
@@ -107,6 +107,34 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
     'settings:set-theme-mode',
     async (_event, { mode }: { mode: ThemeMode }) => {
       settingsService.setThemeMode(mode)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-art-mode',
+    async (_event, { mode }: { mode: ArtMode }) => {
+      settingsService.setArtMode(mode)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-ui-opacity',
+    async (_event, { opacity }: { opacity: number }) => {
+      settingsService.setUiOpacity(opacity)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-art-scale-mode',
+    async (_event, { mode }: { mode: ArtScaleMode }) => {
+      settingsService.setArtScaleMode(mode)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-art-pixelated',
+    async (_event, { pixelated }: { pixelated: boolean }) => {
+      settingsService.setArtPixelated(pixelated)
     }
   )
 

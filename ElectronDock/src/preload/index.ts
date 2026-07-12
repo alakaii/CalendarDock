@@ -44,6 +44,14 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-family-name', { name }),
     setThemeMode: (mode) =>
       ipcRenderer.invoke('settings:set-theme-mode', { mode }),
+    setArtMode: (mode) =>
+      ipcRenderer.invoke('settings:set-art-mode', { mode }),
+    setUiOpacity: (opacity) =>
+      ipcRenderer.invoke('settings:set-ui-opacity', { opacity }),
+    setArtScaleMode: (mode) =>
+      ipcRenderer.invoke('settings:set-art-scale-mode', { mode }),
+    setArtPixelated: (pixelated) =>
+      ipcRenderer.invoke('settings:set-art-pixelated', { pixelated }),
     setLaunchOnStartup: (enabled) =>
       ipcRenderer.invoke('settings:set-launch-on-startup', { enabled }),
     setMealCell: (key, value) =>
@@ -98,6 +106,12 @@ setMealsGoogleTaskList: (accountId, taskListId) =>
       ipcRenderer.invoke('settings:set-wyze-bridge-config', { email, password, host, apiId, apiKey }),
     setRingSnapshotInterval: (seconds) =>
       ipcRenderer.invoke('settings:set-ring-snapshot-interval', { seconds }),
+  },
+
+  art: {
+    getFullscreen:   ()            => ipcRenderer.invoke('art:get-fullscreen'),
+    setFullscreen:   (bytes, ext)  => ipcRenderer.invoke('art:set-fullscreen', { bytes, ext }),
+    clearFullscreen: ()            => ipcRenderer.invoke('art:clear-fullscreen'),
   },
 
   dropbox: {

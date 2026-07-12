@@ -28,6 +28,26 @@
   --card-border:      rgba(0,0,0,0.10);
 }
 
+/* ------------------------------------------------------------
+   Panel backgrounds — derived from the opaque theme colors.
+   In border mode (default) they equal the base colors, so nothing
+   changes. In fullscreen art mode `.art-fullscreen` re-derives them
+   as semi-transparent versions driven by --ui-opacity, so ONE slider
+   fades every panel and the art shows through.
+   ------------------------------------------------------------ */
+:root {
+  --ui-opacity:        1;
+  --bg-surface-panel:  var(--bg-surface);
+  --bg-header-panel:   var(--bg-header);
+  --bg-sidebar-panel:  var(--bg-sidebar);
+}
+
+.art-fullscreen {
+  --bg-surface-panel:  color-mix(in srgb, var(--bg-surface) calc(var(--ui-opacity) * 100%), transparent);
+  --bg-header-panel:   color-mix(in srgb, var(--bg-header)  calc(var(--ui-opacity) * 100%), transparent);
+  --bg-sidebar-panel:  color-mix(in srgb, var(--bg-sidebar) calc(var(--ui-opacity) * 100%), transparent);
+}
+
 .dark {
   --bg-base:          #0f172a;
   --bg-surface:       #1e293b;
@@ -95,12 +115,12 @@ html, body {
 }
 
 .fc .fc-col-header {
-  background-color: var(--fc-head-bg);
+  background-color: var(--bg-surface-panel);
 }
 
 .fc .fc-daygrid-day,
 .fc .fc-timegrid-col {
-  background-color: var(--bg-surface);
+  background-color: var(--bg-surface-panel);
 }
 
 .fc .fc-daygrid-day.fc-day-today,

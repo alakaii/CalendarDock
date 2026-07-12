@@ -2,6 +2,7 @@ import { net } from 'electron'
 import { join, resolve, extname } from 'path'
 import { readFile } from 'fs/promises'
 import { settingsService } from './services/settings.service'
+import { backgroundArtService } from './services/background-art.service'
 
 const MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -16,17 +17,24 @@ const MIME_MAP: Record<string, string> = {
 export async function photosProtocolHandler(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url)
-    // URL format: cdphoto://photo/filename.jpg
+    // URL format: cdphoto://photo/filename.jpg (slideshow)
+    //          or cdphoto://art/fullscreen.png (fullscreen background art)
     const filename = decodeURIComponent(url.pathname.replace(/^\//, ''))
 
-    const configuredFolder = settingsService.getAll().photoFolderPath
-    if (!configuredFolder) {
-      return new Response('No photo folder configured', { status: 404 })
+    let baseFolder: string
+    if (url.hostname === 'art') {
+      baseFolder = backgroundArtService.dir()
+    } else {
+      const configuredFolder = settingsService.getAll().photoFolderPath
+      if (!configuredFolder) {
+        return new Response('No photo folder configured', { status: 404 })
+      }
+      baseFolder = configuredFolder
     }
 
-    // Security: ensure resolved path is strictly within the configured folder
-    const fullPath = resolve(configuredFolder, filename)
-    if (!fullPath.startsWith(resolve(configuredFolder))) {
+    // Security: ensure resolved path is strictly within the base folder
+    const fullPath = resolve(baseFolder, filename)
+    if (!fullPath.startsWith(resolve(baseFolder))) {
       return new Response('Forbidden', { status: 403 })
     }
 

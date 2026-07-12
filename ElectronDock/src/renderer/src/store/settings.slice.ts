@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot } from '../../../preload/types'
+import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, ArtMode, ArtScaleMode } from '../../../preload/types'
 
 interface SettingsState extends AppSettings {
   loadFromMain: () => Promise<void>
@@ -11,6 +11,10 @@ interface SettingsState extends AppSettings {
   setMealsFontSize: (size: number) => void
   setFamilyName: (name: string) => void
   setThemeMode: (mode: ThemeMode) => void
+  setArtMode: (mode: ArtMode) => void
+  setUiOpacity: (opacity: number) => void
+  setArtScaleMode: (mode: ArtScaleMode) => void
+  setArtPixelated: (pixelated: boolean) => void
   setTimezone: (tz: string) => void
   setAdditionalTimezones: (zones: string[]) => void
   setMealCell: (key: string, value: string) => void
@@ -60,6 +64,10 @@ const defaults: AppSettings = {
   launchOnStartup: false,
   familyName: 'Walker Family Calendar',
   themeMode: 'auto',
+  artMode:      'border',
+  uiOpacity:    85,
+  artScaleMode: 'fill',
+  artPixelated: true,
   lists: [],
   mealPlan: {},
   calendarSwipeWeek:  'horizontal',
@@ -235,6 +243,27 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setThemeMode: (mode) => {
     window.api.settings.setThemeMode(mode)
     set({ themeMode: mode })
+  },
+
+  setArtMode: (mode) => {
+    window.api.settings.setArtMode(mode)
+    set({ artMode: mode })
+  },
+
+  setUiOpacity: (opacity) => {
+    const clamped = Math.max(20, Math.min(100, Math.round(opacity)))
+    window.api.settings.setUiOpacity(clamped)
+    set({ uiOpacity: clamped })
+  },
+
+  setArtScaleMode: (mode) => {
+    window.api.settings.setArtScaleMode(mode)
+    set({ artScaleMode: mode })
+  },
+
+  setArtPixelated: (pixelated) => {
+    window.api.settings.setArtPixelated(pixelated)
+    set({ artPixelated: pixelated })
   },
 
   setTimezone: (tz) => {

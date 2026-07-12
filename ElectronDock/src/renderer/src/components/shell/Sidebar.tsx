@@ -570,6 +570,7 @@ export default function Sidebar() {
   const setMode      = useUIStore((s) => s.setMode)
   const themeMode    = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const fullscreenArt = useSettingsStore((s) => s.artMode === 'fullscreen')
 
   const sidebarLayoutRaw = useSettingsStore((s) => s.sidebarLayout)
   const setSidebarLayout = useSettingsStore((s) => s.setSidebarLayout)
@@ -580,7 +581,7 @@ export default function Sidebar() {
   const recircActive  = rinnaiDevices.some((d) => d.recirculationEnabled)
 
   // ── Sidebar background image (managed in Settings → General) ──
-  const [sidebarImage, setSidebarImage] = useState<string | null>(
+  const [sidebarImageRaw, setSidebarImage] = useState<string | null>(
     () => localStorage.getItem(SIDEBAR_IMAGE_KEY)
   )
   useEffect(() => {
@@ -588,6 +589,8 @@ export default function Sidebar() {
     window.addEventListener('sidebarImageChanged', handler)
     return () => window.removeEventListener('sidebarImageChanged', handler)
   }, [])
+  // In fullscreen art mode the strip image is suppressed so the art shows through.
+  const sidebarImage = fullscreenArt ? null : sidebarImageRaw
 
   // ── DnD state ──
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
@@ -794,7 +797,7 @@ export default function Sidebar() {
         className="flex flex-col items-center py-3 gap-1 flex-shrink-0 relative"
         style={{
           width: SIDEBAR_W,
-          background: sidebarImage ? 'transparent' : 'var(--bg-sidebar)',
+          background: sidebarImage ? 'transparent' : 'var(--bg-sidebar-panel)',
           borderRight: '1px solid var(--border-sidebar)',
           // overflow visible so the group flyout can extend to the right
           overflow: 'visible',
@@ -818,8 +821,8 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* ── Seasonal gradient ── */}
-        {!sidebarImage && (
+        {/* ── Seasonal gradient — suppressed in fullscreen art mode ── */}
+        {!sidebarImage && !fullscreenArt && (
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"

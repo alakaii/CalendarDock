@@ -320,6 +320,10 @@ export interface RinnaiDevice {
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
 
+// ---- Background art ----
+export type ArtMode = 'border' | 'fullscreen'
+export type ArtScaleMode = 'fill' | 'fit' | 'stretch'
+
 export interface ListItem {
   id: string
   text: string
@@ -377,6 +381,15 @@ export interface AppSettings {
   launchOnStartup: boolean
   familyName: string
   themeMode: ThemeMode
+  // Background art mode. 'border' = header/sidebar strip images (default,
+  // unchanged behavior). 'fullscreen' = full-bleed art layer behind the UI.
+  artMode: ArtMode
+  /** Calendar-panel opacity in fullscreen mode, 20–100. Ignored in border mode. */
+  uiOpacity: number
+  /** How the fullscreen art is scaled onto the 1920×1080 canvas. */
+  artScaleMode: ArtScaleMode
+  /** Nearest-neighbor scaling for crisp pixel art. */
+  artPixelated: boolean
   lists: AppList[]
   mealPlan: MealPlan
   // Calendar view
@@ -522,6 +535,10 @@ export interface CalendarDockAPI {
     setPhotoFolder: (folderPath: string) => Promise<void>
     setFamilyName: (name: string) => Promise<void>
     setThemeMode: (mode: ThemeMode) => Promise<void>
+    setArtMode: (mode: ArtMode) => Promise<void>
+    setUiOpacity: (opacity: number) => Promise<void>
+    setArtScaleMode: (mode: ArtScaleMode) => Promise<void>
+    setArtPixelated: (pixelated: boolean) => Promise<void>
     setLaunchOnStartup: (enabled: boolean) => Promise<void>
     setMealCell: (key: string, value: string) => Promise<void>
     setCalendarSwipe: (view: 'week' | 'month', direction: CalendarSwipeDirection) => Promise<void>
@@ -547,6 +564,14 @@ export interface CalendarDockAPI {
     setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => Promise<void>
     setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => Promise<void>
     setRingSnapshotInterval: (seconds: number) => Promise<void>
+  }
+  art: {
+    /** Serving URL (cdphoto://art/…) of the current fullscreen art, or null. */
+    getFullscreen:   () => Promise<string | null>
+    /** Write uploaded image bytes as the fullscreen art; returns its serving URL. */
+    setFullscreen:   (bytes: Uint8Array, ext: string) => Promise<string | null>
+    /** Remove any stored fullscreen art file. */
+    clearFullscreen: () => Promise<void>
   }
   dropbox: {
     connect:      (appKey: string) => Promise<{ email: string }>

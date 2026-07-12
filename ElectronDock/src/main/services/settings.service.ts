@@ -1,7 +1,7 @@
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
 import { safeStorage } from 'electron'
-import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, TeslaVehicleConfig } from '../../preload/types'
+import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, TeslaVehicleConfig, ArtMode, ArtScaleMode } from '../../preload/types'
 
 type StoredSettings = AppSettings & {
   // Accounts with encrypted refresh tokens (base64 encoded, DPAPI encrypted)
@@ -45,6 +45,10 @@ const defaults: StoredSettings = {
   launchOnStartup: false,
   familyName: 'Walker Family Calendar',
   themeMode: 'auto',
+  artMode:      'border',
+  uiOpacity:    85,
+  artScaleMode: 'fill',
+  artPixelated: true,
   lists: [
     { id: 'chores', name: 'Chores', items: [] }
   ],
@@ -236,6 +240,22 @@ export const settingsService = {
 
   setThemeMode(mode: 'auto' | 'light' | 'dark'): void {
     store.set('themeMode', mode)
+  },
+
+  setArtMode(mode: ArtMode): void {
+    store.set('artMode', mode)
+  },
+
+  setUiOpacity(opacity: number): void {
+    store.set('uiOpacity', Math.max(20, Math.min(100, Math.round(opacity))))
+  },
+
+  setArtScaleMode(mode: ArtScaleMode): void {
+    store.set('artScaleMode', mode)
+  },
+
+  setArtPixelated(pixelated: boolean): void {
+    store.set('artPixelated', pixelated)
   },
 
   setLaunchOnStartup(enabled: boolean): void {

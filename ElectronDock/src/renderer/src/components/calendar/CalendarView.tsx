@@ -234,7 +234,7 @@ export default function CalendarView() {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg-surface)' }}>
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg-surface-panel)' }}>
       {/* FullCalendar — fills all remaining height */}
       <div ref={containerRef} className="flex-1 relative overflow-hidden">
         <div
