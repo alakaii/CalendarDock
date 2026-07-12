@@ -425,10 +425,10 @@ function TopSlot({
             isActive
               ? 'bg-blue-500 text-white'
               : chipFill
-                ? 'text-[var(--text-sidebar)]'
+                ? 'art-icon-glow'
                 : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
           } ${draggable.isDragging ? 'opacity-30' : ''}`}
-          style={{ touchAction: 'none', ...(chipFill && !isActive ? { background: 'var(--chip-bg)' } : {}) }}
+          style={{ touchAction: 'none' }}
           aria-label={slot.kind === 'item' ? PAGE_INFO[slot.pageId].label : 'Group'}
         >
           {slot.kind === 'item'
@@ -872,8 +872,7 @@ export default function Sidebar() {
         {/* Theme toggle */}
         <button
           onClick={handleThemeToggle}
-          className={`${btnBase} text-[var(--text-sidebar)] ${chipFill ? '' : 'hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'}`}
-          style={chipFill ? { background: 'var(--chip-bg)' } : undefined}
+          className={`${btnBase} ${chipFill ? 'art-icon-glow' : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'}`}
           aria-label={`Theme: ${themeLabel}`}
           title={`Theme: ${themeLabel} — click to cycle`}
         >
@@ -884,8 +883,7 @@ export default function Sidebar() {
         {/* Sleep */}
         <button
           onClick={() => setMode('standby')}
-          className={`${btnBase} text-[var(--text-sidebar)] ${chipFill ? '' : 'hover:bg-[var(--sidebar-hover)] opacity-60 hover:opacity-100'}`}
-          style={chipFill ? { background: 'var(--chip-bg)' } : undefined}
+          className={`${btnBase} ${chipFill ? 'art-icon-glow' : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-60 hover:opacity-100'}`}
           aria-label="Sleep / Standby"
         >
           <ZzzIcon />
@@ -899,10 +897,9 @@ export default function Sidebar() {
             activePage === 'settings'
               ? 'bg-blue-500 text-white'
               : chipFill
-                ? 'text-[var(--text-sidebar)]'
+                ? 'art-icon-glow'
                 : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
           }`}
-          style={chipFill && activePage !== 'settings' ? { background: 'var(--chip-bg)' } : undefined}
           aria-label="Settings"
         >
           <SettingsIcon />

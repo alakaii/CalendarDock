@@ -257,7 +257,7 @@ export default function AppHeader() {
             {/* Week | Month toggle */}
             <div
               className="flex rounded-lg overflow-hidden text-sm"
-              style={{ border: '1px solid var(--border)' }}
+              style={{ border: '1px solid var(--border)', ...(chipFill ? { background: 'var(--chip-bg)' } : {}) }}
             >
               {(['timeGridWeek', 'dayGridMonth'] as CalView[]).map((v) => (
                 <button
