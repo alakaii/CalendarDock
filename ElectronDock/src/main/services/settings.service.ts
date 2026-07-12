@@ -32,7 +32,7 @@ type StoredSettings = AppSettings & {
   icloudPhotoCount:   number
   icloudLastError:    string
   // Per-album (keyed by album token): change-detection ctag + last sync result
-  icloudAlbumMeta:    Record<string, { ctag: string; count: number; error: string }>
+  icloudAlbumMeta:    Record<string, { ctag: string; count: number; error: string; name: string }>
 }
 
 const defaults: StoredSettings = {
@@ -579,7 +579,7 @@ export const settingsService = {
   setIcloudPhotosEnabled(enabled: boolean): void { store.set('icloudPhotosEnabled', enabled) },
 
   /** Record a sync pass: total photo count + per-album meta (ctag/count/error). */
-  setIcloudSyncResult(count: number, meta: Record<string, { ctag: string; count: number; error: string }>, error: string): void {
+  setIcloudSyncResult(count: number, meta: Record<string, { ctag: string; count: number; error: string; name: string }>, error: string): void {
     store.set('icloudPhotoCount', count)
     store.set('icloudAlbumMeta',  meta)
     store.set('icloudLastError',  error)

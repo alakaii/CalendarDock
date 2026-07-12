@@ -415,10 +415,14 @@ export default function PhotoSettings() {
               <div className="space-y-2">
                 {icloudAlbumUrls.map((url) => {
                   const st = icloudStatus?.albums.find((a) => a.url === url)
+                  const token = icloudAlbumLabel(url)
                   return (
                     <div key={url} className="rounded-xl p-3 flex items-center gap-3" style={cardStyle}>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-mono truncate" style={labelStyle}>{icloudAlbumLabel(url)}</p>
+                        <p className="text-sm font-semibold truncate" style={labelStyle}>{st?.name || token}</p>
+                        {st?.name && (
+                          <p className="text-xs font-mono truncate" style={subStyle}>{token}</p>
+                        )}
                         {st?.error ? (
                           <p className="text-xs mt-0.5 break-all" style={{ color: '#ef4444' }}>{st.error}</p>
                         ) : (

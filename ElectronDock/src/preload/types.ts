@@ -327,6 +327,8 @@ export interface IcloudAlbumStatus {
   url: string
   /** Parsed album token (the URL fragment). */
   token: string
+  /** Human-readable album name (Apple's streamName). '' until the album has synced. */
+  name: string
   /** Photos currently cached from this album. */
   photoCount: number
   /** Last sync error for this album ('' = last sync succeeded). */

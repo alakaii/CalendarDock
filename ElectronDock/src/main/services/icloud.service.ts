@@ -89,6 +89,9 @@ async function apiPost(host: string, token: string, endpoint: string, body: unkn
       method: 'POST',
       headers: COMMON_HEADERS,
       body: JSON.stringify(body),
+      // A hung connection must fail the sync (which retries later), never
+      // stall it forever — sync() runs unsupervised on a wall kiosk.
+      signal: AbortSignal.timeout(30_000),
     })
     // 330 = Apple "wrong partition" — body carries the correct host.
     if (res.status === 330) {
@@ -159,6 +162,7 @@ export const icloudService = {
     const albums: IcloudAlbumStatus[] = configuredAlbums().map((a) => ({
       url:        a.url,
       token:      a.token,
+      name:       meta[a.token]?.name ?? '',
       photoCount: meta[a.token]?.count ?? 0,
       error:      meta[a.token]?.error ?? '',
     }))
@@ -237,7 +241,7 @@ export const icloudService = {
 
       await mkdir(dir, { recursive: true })
       const prevMeta = s.icloudAlbumMeta ?? {}
-      const newMeta: Record<string, { ctag: string; count: number; error: string }> = {}
+      const newMeta: Record<string, { ctag: string; count: number; error: string; name: string }> = {}
       const errors: string[] = []
 
       // Delete files from albums that were removed from the list.
@@ -261,6 +265,7 @@ export const icloudService = {
           // 1. Album index
           const { host, data } = await apiPost(ENTRY_HOST, album.token, 'webstream', { streamCtag: null })
           const ctag   = String(data?.streamCtag ?? '')
+          const name   = String(data?.streamName ?? '') || (prevMeta[album.token]?.name ?? '')
           const chosen = chooseDerivatives(data?.photos ?? [], album.key)
           if (chosen.length === 0) throw new Error('Album is empty or contains no downloadable photos.')
 
@@ -278,7 +283,7 @@ export const icloudService = {
 
           // Fast path: album unchanged since last sync and everything present.
           if (missing.length === 0 && pruned === 0 && ctag && ctag === (prevMeta[album.token]?.ctag || '')) {
-            newMeta[album.token] = { ctag, count: present.size, error: '' }
+            newMeta[album.token] = { ctag, count: present.size, error: '', name }
             continue
           }
 
@@ -295,7 +300,7 @@ export const icloudService = {
                 const item = items[c.checksum]
                 if (!item?.url_location || !item?.url_path) return
                 try {
-                  const r = await fetch(`https://${item.url_location}${item.url_path}`)
+                  const r = await fetch(`https://${item.url_location}${item.url_path}`, { signal: AbortSignal.timeout(60_000) })
                   if (!r.ok) return
                   await writeFile(join(dir, c.filename), Buffer.from(await r.arrayBuffer()))
                   downloaded++
@@ -309,7 +314,7 @@ export const icloudService = {
           // 5. Count from actual disk contents for this album
           const finalCount = (await readdir(dir).catch(() => [] as string[]))
             .filter((f) => keyOfFile(f) === album.key && wanted.has(f)).length
-          newMeta[album.token] = { ctag, count: finalCount, error: '' }
+          newMeta[album.token] = { ctag, count: finalCount, error: '', name }
           console.log(`[icloud] ${album.token}: +${downloaded} -${pruned} → ${finalCount} photos`)
         } catch (err) {
           // Keep this album's cached files; record the error and move on.
@@ -319,6 +324,7 @@ export const icloudService = {
             ctag:  prevMeta[album.token]?.ctag ?? '',
             count: albumFiles.length,
             error: msg,
+            name:  prevMeta[album.token]?.name ?? '',
           }
           errors.push(msg)
         }
