@@ -58,7 +58,9 @@ export default function DisplayPowerManager() {
   }, [inWindow, deepSleepStart, deepSleepEnd])
 
   // ── Backlight state machine ──────────────────────────────────────────────
-  const backlightOffRef   = useRef(false)
+  // Starts pessimistic (off) so the first app-mode pass always issues an
+  // explicit "on" — syncs real panel state if the app restarted while dark.
+  const backlightOffRef   = useRef(true)
   const backlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const cancelTimer = (): void => {
