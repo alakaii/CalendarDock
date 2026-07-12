@@ -463,9 +463,7 @@ export interface AppSettings {
   cameraWakeThreshold:        number    // 0.0–1.0, set during calibration
   cameraWakePixelNoise:       number    // per-pixel diff floor 0–255, default 20
   cameraWakeBackground:       number[] | null  // 19,200 grayscale values (160×120), null = not calibrated
-  passiveStandbyMinutes:      number   // standby timeout in passive mode, default 5
-  passiveBacklightOffMinutes: number   // minutes in standby before backlight off (passive), default 15
-  activeStandbyMinutes:       number   // standby timeout in active mode, default 30
+  passiveBacklightOffMinutes: number   // minutes the room must be empty (in standby) before backlight off, default 15
   motionSustainSeconds:       number   // seconds of sustained motion to switch to active, default 6
   activeHoldMinutes:          number   // minutes of no sustained motion before returning to passive, default 20
   // Wyze Bridge
@@ -560,8 +558,8 @@ export interface CalendarDockAPI {
     setDeepSleepSchedule:   (start: string, end: string) => Promise<void>
     setCameraWakeCalibration:(background: number[], threshold: number) => Promise<void>
     setCameraWakeThreshold:  (threshold: number) => Promise<void>
-    setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => Promise<void>
-    setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => Promise<void>
+    setPassiveDaySettings:   (backlightOffMinutes: number) => Promise<void>
+    setActiveDaySettings:    (sustainSeconds: number, holdMinutes: number) => Promise<void>
     setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => Promise<void>
     setRingSnapshotInterval: (seconds: number) => Promise<void>
   }

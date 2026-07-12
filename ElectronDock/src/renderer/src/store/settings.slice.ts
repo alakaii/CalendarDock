@@ -45,8 +45,8 @@ interface SettingsState extends AppSettings {
   setDeepSleepSchedule:   (start: string, end: string) => void
   setCameraWakeCalibration:(background: number[], threshold: number) => void
   setCameraWakeThreshold:  (threshold: number) => void
-  setPassiveDaySettings:   (standbyMinutes: number, backlightOffMinutes: number) => void
-  setActiveDaySettings:    (standbyMinutes: number, sustainSeconds: number, holdMinutes: number) => void
+  setPassiveDaySettings:   (backlightOffMinutes: number) => void
+  setActiveDaySettings:    (sustainSeconds: number, holdMinutes: number) => void
   setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => void
   setRingSnapshotInterval: (seconds: number) => void
   setTeslaConnectionMode: (mode: 'fleet' | 'local') => void
@@ -155,9 +155,7 @@ const defaults: AppSettings = {
   cameraWakeThreshold:        0.15,
   cameraWakePixelNoise:       20,
   cameraWakeBackground:       null,
-  passiveStandbyMinutes:      5,
   passiveBacklightOffMinutes: 15,
-  activeStandbyMinutes:       30,
   motionSustainSeconds:       6,
   activeHoldMinutes:          20,
   wyzeBridgeEmail:    '',
@@ -421,14 +419,14 @@ setMealsGoogleTaskList: (accountId, taskListId) => {
     set({ cameraWakeThreshold: threshold })
   },
 
-  setPassiveDaySettings: (standbyMinutes, backlightOffMinutes) => {
-    window.api.settings.setPassiveDaySettings(standbyMinutes, backlightOffMinutes)
-    set({ passiveStandbyMinutes: standbyMinutes, passiveBacklightOffMinutes: backlightOffMinutes })
+  setPassiveDaySettings: (backlightOffMinutes) => {
+    window.api.settings.setPassiveDaySettings(backlightOffMinutes)
+    set({ passiveBacklightOffMinutes: backlightOffMinutes })
   },
 
-  setActiveDaySettings: (standbyMinutes, sustainSeconds, holdMinutes) => {
-    window.api.settings.setActiveDaySettings(standbyMinutes, sustainSeconds, holdMinutes)
-    set({ activeStandbyMinutes: standbyMinutes, motionSustainSeconds: sustainSeconds, activeHoldMinutes: holdMinutes })
+  setActiveDaySettings: (sustainSeconds, holdMinutes) => {
+    window.api.settings.setActiveDaySettings(sustainSeconds, holdMinutes)
+    set({ motionSustainSeconds: sustainSeconds, activeHoldMinutes: holdMinutes })
   },
 
   setWyzeBridgeConfig: (email, password, host, apiId, apiKey) => {

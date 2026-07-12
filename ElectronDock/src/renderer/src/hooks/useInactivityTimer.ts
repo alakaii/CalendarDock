@@ -8,7 +8,7 @@ export function useInactivityTimer(timeoutMs: number) {
   const reset = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
-      setMode('standby')
+      setMode('standby', 'inactivity-timer')
     }, timeoutMs)
   }, [timeoutMs, setMode])
 
