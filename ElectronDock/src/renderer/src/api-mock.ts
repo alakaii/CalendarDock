@@ -145,6 +145,10 @@ const mock: CalendarDockAPI = {
     wakeFromDeepSleep: async () => {},
     syncIcloud: async () => ({ ok: true, count: 0, error: '' }),
     getIcloudStatus: async () => ({ enabled: false, albums: [], lastSync: 0, photoCount: 0, lastError: '', isSyncing: false }),
+    resyncAll: async () => ({
+      dropbox: { skipped: true, ok: true, indexed: 0, cached: 0, error: '' },
+      icloud:  { skipped: true, ok: true, count: 0, error: '' },
+    }),
   },
   weather: {
     fetch: async () => ({

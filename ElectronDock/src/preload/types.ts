@@ -353,6 +353,28 @@ export interface IcloudSyncResult {
   error: string
 }
 
+/** Result of a unified "Resync All Photos" run across every source. */
+export interface PhotoResyncResult {
+  dropbox: {
+    /** True when Dropbox isn't the active source / has no folders — nothing was done. */
+    skipped: boolean
+    ok: boolean
+    /** Total photos found in the Dropbox index this run. */
+    indexed: number
+    /** Photos actually on disk after the refill. */
+    cached: number
+    error: string
+  }
+  icloud: {
+    /** True when iCloud albums are disabled / none configured — nothing was done. */
+    skipped: boolean
+    ok: boolean
+    /** Total photos cached across all albums. */
+    count: number
+    error: string
+  }
+}
+
 // ---- Background art ----
 export type ArtMode = 'border' | 'fullscreen'
 export type ArtScaleMode = 'fill' | 'fit' | 'stretch'
@@ -715,6 +737,8 @@ export interface CalendarDockAPI {
     syncIcloud: () => Promise<IcloudSyncResult>
     /** Current iCloud sync status (per-album counts/errors, last sync). */
     getIcloudStatus: () => Promise<IcloudStatus>
+    /** Re-check + re-index + refill every configured photo source (Dropbox + iCloud) at once. */
+    resyncAll: () => Promise<PhotoResyncResult>
   }
   weather: {
     fetch: () => Promise<WeatherData>

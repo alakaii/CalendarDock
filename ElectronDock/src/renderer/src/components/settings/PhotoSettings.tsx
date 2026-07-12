@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
 import { TouchButton } from '../shared/TouchButton'
-import type { SlideshowSortOrder, SlideshowTransition, IcloudStatus } from '../../../../preload/types'
+import type { SlideshowSortOrder, SlideshowTransition, IcloudStatus, PhotoResyncResult } from '../../../../preload/types'
 
 export default function PhotoSettings() {
   const photoFolderPath      = useSettingsStore((s) => s.photoFolderPath)
@@ -37,6 +37,10 @@ export default function PhotoSettings() {
   const [icloudUrlInput, setIcloudUrlInput] = useState('')
   const [icloudSyncing, setIcloudSyncing]   = useState(false)
   const [icloudStatus, setIcloudStatus]     = useState<IcloudStatus | null>(null)
+
+  // Unified "Resync All Photos" state
+  const [resyncing, setResyncing]         = useState(false)
+  const [resyncResult, setResyncResult]   = useState<PhotoResyncResult | null>(null)
 
   useEffect(() => {
     window.api.dropbox.getStatus().then((s) => setSyncing(s.isSyncing))
@@ -146,6 +150,35 @@ export default function PhotoSettings() {
     }
   }
 
+  // ── Unified resync across every configured source ──
+  const dropboxWillSync = dropboxEnabled && dropboxFolderPaths.length > 0
+  const icloudWillSync  = icloudPhotosEnabled && icloudAlbumUrls.length > 0
+
+  const handleResyncAll = async () => {
+    if (resyncing) return
+    setResyncResult(null)
+    setResyncing(true)
+    // Prime the per-source live indicators. Dropbox reuses its own progress
+    // stream (dropbox:progress); iCloud is polled while the run is in flight.
+    if (dropboxWillSync) { setSyncing(true); setSyncPct(0); setSyncStatus('Starting…') }
+    if (icloudWillSync) setIcloudSyncing(true)
+    const poll = icloudWillSync ? setInterval(refreshIcloudStatus, 1500) : null
+    try {
+      const res = await window.api.photos.resyncAll()
+      setResyncResult(res)
+    } catch (err) {
+      console.warn('[resync] failed:', err)
+    } finally {
+      if (poll) clearInterval(poll)
+      setResyncing(false)
+      setSyncing(false)
+      setIcloudSyncing(false)
+      await loadSettings()
+      await refreshIcloudStatus()
+      window.api.photos.getList().then((list) => setPhotoCount2(list.length))
+    }
+  }
+
   /** Compact display label for an album row: the token if parseable, else the raw URL. */
   const icloudAlbumLabel = (url: string) => {
     const hash = url.indexOf('#')
@@ -177,6 +210,92 @@ export default function PhotoSettings() {
   return (
     <div className="space-y-8 max-w-lg">
       <h3 className="text-lg font-semibold" style={labelStyle}>Photos</h3>
+
+      {/* ── Resync all photos (verifies every source end to end) ── */}
+      <section className="space-y-3">
+        <div>
+          <label className="text-sm font-medium" style={labelStyle}>Resync all photos</label>
+          <p className="text-xs mt-0.5" style={subStyle}>
+            Re-checks connections, re-indexes every source (picking up newly added folders and
+            albums), and re-downloads anything missing — Dropbox and iCloud together.
+          </p>
+        </div>
+
+        <TouchButton
+          variant="primary"
+          onClick={handleResyncAll}
+          disabled={resyncing || syncing || icloudSyncing || (!dropboxWillSync && !icloudWillSync)}
+          className="w-full"
+        >
+          {resyncing ? 'Resyncing all photos…' : 'Resync All Photos'}
+        </TouchButton>
+
+        {!dropboxWillSync && !icloudWillSync && (
+          <p className="text-xs" style={subStyle}>
+            No photo source is enabled — set up Dropbox or an iCloud shared album below first.
+          </p>
+        )}
+
+        {/* Live per-source status while running */}
+        {resyncing && (
+          <div className="rounded-xl p-4 space-y-2" style={cardStyle}>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium" style={labelStyle}>Dropbox</span>
+              <span className="font-mono text-right truncate" style={subStyle}>
+                {dropboxWillSync
+                  ? `${syncStatus || 'Syncing…'} · ${syncPct}%`
+                  : 'Not configured — skipped'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium" style={labelStyle}>iCloud</span>
+              <span className="font-mono text-right truncate" style={subStyle}>
+                {icloudWillSync
+                  ? `Syncing… · ${(icloudStatus?.photoCount ?? 0).toLocaleString()} photos`
+                  : 'Not configured — skipped'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Final result summary */}
+        {!resyncing && resyncResult && (
+          <div className="rounded-xl p-4 space-y-2" style={cardStyle}>
+            <p className="text-xs font-semibold" style={labelStyle}>Last resync</p>
+            {/* Dropbox line */}
+            <div className="flex items-start justify-between gap-3 text-xs">
+              <span className="font-medium shrink-0" style={labelStyle}>Dropbox</span>
+              {resyncResult.dropbox.skipped ? (
+                <span className="text-right" style={subStyle}>Skipped — not configured</span>
+              ) : resyncResult.dropbox.error ? (
+                <span className="text-right break-all" style={{ color: '#ef4444' }}>
+                  {resyncResult.dropbox.error}
+                </span>
+              ) : (
+                <span className="text-right" style={subStyle}>
+                  {resyncResult.dropbox.indexed.toLocaleString()} indexed ·{' '}
+                  {resyncResult.dropbox.cached.toLocaleString()} cached
+                </span>
+              )}
+            </div>
+            {/* iCloud line */}
+            <div className="flex items-start justify-between gap-3 text-xs">
+              <span className="font-medium shrink-0" style={labelStyle}>iCloud</span>
+              {resyncResult.icloud.skipped ? (
+                <span className="text-right" style={subStyle}>Skipped — not configured</span>
+              ) : resyncResult.icloud.error ? (
+                <span className="text-right break-all" style={{ color: '#ef4444' }}>
+                  {resyncResult.icloud.error}
+                </span>
+              ) : (
+                <span className="text-right" style={subStyle}>
+                  {resyncResult.icloud.count.toLocaleString()} photos cached
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* ── Photo source toggle ── */}
       <section className="space-y-3">
@@ -352,7 +471,7 @@ export default function PhotoSettings() {
               </div>
             </div>
           ) : (
-            <TouchButton variant="secondary" onClick={handleSyncNow} className="w-full">
+            <TouchButton variant="secondary" onClick={handleSyncNow} disabled={resyncing} className="w-full">
               Sync Now
             </TouchButton>
           )}
@@ -462,7 +581,7 @@ export default function PhotoSettings() {
             <TouchButton
               variant="secondary"
               onClick={handleIcloudSync}
-              disabled={icloudSyncing || icloudAlbumUrls.length === 0}
+              disabled={icloudSyncing || resyncing || icloudAlbumUrls.length === 0}
               className="w-full"
             >
               {icloudSyncing ? 'Syncing…' : 'Sync Now'}

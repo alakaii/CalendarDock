@@ -137,15 +137,19 @@ export const photoQueueService = {
 
   // ── Initial fill (also called by "Sync Now") ─────────────────────────────────
 
-  async _doInitialFill(): Promise<void> {
-    if (isWorking) return
+  async _doInitialFill(): Promise<{ ok: boolean; indexed: number; cached: number; error: string }> {
+    if (isWorking) {
+      return { ok: false, indexed: 0, cached: downloadedFiles.length, error: 'Sync already in progress' }
+    }
     isWorking = true
     const cacheDir = getCacheDir()
+    let indexed = 0
 
     try {
       emit(0, 'Fetching photo index from Dropbox…')
       const settings  = settingsService.getAll()
       const allPhotos = await dropboxService.listAllPhotosMulti(settings.dropboxFolderPaths)
+      indexed = allPhotos.length
       if (allPhotos.length === 0) throw new Error('No photos found in the configured Dropbox folders.')
 
       shuffledQueue   = [...allPhotos]
@@ -175,9 +179,12 @@ export const photoQueueService = {
       settingsService.setDropboxLastSync(Date.now())
       emit(100, `Done — ${downloadedFiles.length} photos loaded`)
       console.log(`[photoQueue] Initial fill complete: ${downloadedFiles.length} photos`)
+      return { ok: true, indexed, cached: downloadedFiles.length, error: '' }
     } catch (err) {
+      const msg = (err as Error).message || String(err)
       console.error('[photoQueue] Initial fill failed:', err)
-      emit(-1, `Failed: ${(err as Error).message}`)
+      emit(-1, `Failed: ${msg}`)
+      return { ok: false, indexed, cached: downloadedFiles.length, error: msg }
     } finally {
       isWorking = false
     }

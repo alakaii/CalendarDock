@@ -213,6 +213,7 @@ setMealsGoogleTaskList: (accountId, taskListId) =>
     wakeFromDeepSleep: () => ipcRenderer.invoke('photos:wake-from-deep-sleep'),
     syncIcloud:        () => ipcRenderer.invoke('photos:sync-icloud'),
     getIcloudStatus:   () => ipcRenderer.invoke('photos:icloud-status'),
+    resyncAll:         () => ipcRenderer.invoke('photos:resync-all'),
     onListUpdated: (cb) => {
       ipcRenderer.on('photos:list-updated', (_event, list) => cb(list))
     },
