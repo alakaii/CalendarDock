@@ -139,6 +139,13 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
   )
 
   ipcMain.handle(
+    'settings:set-art-icon-fill',
+    async (_event, { fill }: { fill: boolean }) => {
+      settingsService.setArtIconFill(fill)
+    }
+  )
+
+  ipcMain.handle(
     'settings:set-launch-on-startup',
     async (_event, { enabled }: { enabled: boolean }) => {
       settingsService.setLaunchOnStartup(enabled)

@@ -52,6 +52,8 @@ const api: CalendarDockAPI = {
       ipcRenderer.invoke('settings:set-art-scale-mode', { mode }),
     setArtPixelated: (pixelated) =>
       ipcRenderer.invoke('settings:set-art-pixelated', { pixelated }),
+    setArtIconFill: (fill) =>
+      ipcRenderer.invoke('settings:set-art-icon-fill', { fill }),
     setLaunchOnStartup: (enabled) =>
       ipcRenderer.invoke('settings:set-launch-on-startup', { enabled }),
     setMealCell: (key, value) =>

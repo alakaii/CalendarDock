@@ -390,6 +390,8 @@ export interface AppSettings {
   artScaleMode: ArtScaleMode
   /** Nearest-neighbor scaling for crisp pixel art. */
   artPixelated: boolean
+  /** Rounded backdrop chips behind sidebar nav items + header text (fullscreen art only). */
+  artIconFill: boolean
   lists: AppList[]
   mealPlan: MealPlan
   // Calendar view
@@ -537,6 +539,7 @@ export interface CalendarDockAPI {
     setUiOpacity: (opacity: number) => Promise<void>
     setArtScaleMode: (mode: ArtScaleMode) => Promise<void>
     setArtPixelated: (pixelated: boolean) => Promise<void>
+    setArtIconFill: (fill: boolean) => Promise<void>
     setLaunchOnStartup: (enabled: boolean) => Promise<void>
     setMealCell: (key: string, value: string) => Promise<void>
     setCalendarSwipe: (view: 'week' | 'month', direction: CalendarSwipeDirection) => Promise<void>

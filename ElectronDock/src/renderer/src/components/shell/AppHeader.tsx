@@ -88,6 +88,7 @@ export default function AppHeader() {
   const units             = useSettingsStore((s) => s.weather.units)
   const timezone          = useSettingsStore((s) => s.timezone)
   const fullscreenArt     = useSettingsStore((s) => s.artMode === 'fullscreen')
+  const artIconFill       = useSettingsStore((s) => s.artIconFill)
   const additionalZones   = useSettingsStore((s) => s.additionalTimezones)
   const activePage        = useUIStore((s) => s.activePage)
   const calendarDate      = useUIStore((s) => s.calendarDate)
@@ -144,6 +145,12 @@ export default function AppHeader() {
 
   const isCalendar = activePage === 'calendar'
 
+  // Rounded backdrop chip so header text/date reads over fullscreen art.
+  const chipFill = fullscreenArt && artIconFill
+  const chip: React.CSSProperties | undefined = chipFill
+    ? { background: 'var(--chip-bg)', borderRadius: 10 }
+    : undefined
+
   return (
     <header
       className="flex items-center px-4 flex-shrink-0 gap-3 relative"
@@ -178,7 +185,12 @@ export default function AppHeader() {
       {/* ── Left: page title (non-calendar pages only) ── */}
       {!isCalendar && (
         <div className="flex-shrink-0 relative z-20">
-          <span className="text-xl font-bold px-1">{pageTitles[activePage] ?? ''}</span>
+          <span
+            className="text-xl font-bold px-1"
+            style={chipFill ? { ...chip, padding: '4px 12px', display: 'inline-block' } : undefined}
+          >
+            {pageTitles[activePage] ?? ''}
+          </span>
         </div>
       )}
 
@@ -208,7 +220,7 @@ export default function AppHeader() {
               <button
                 onClick={() => navigate('today')}
                 className="px-3 py-1 text-sm font-semibold rounded-lg min-h-[40px] tabular-nums transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 flex flex-col items-center justify-center leading-tight"
-                style={{ color: 'var(--text-primary)', minWidth: 140 }}
+                style={{ color: 'var(--text-primary)', minWidth: 140, ...chip }}
                 title="Go to today"
               >
                 <span>{format(calendarDate, 'MMMM yyyy')}</span>
@@ -235,7 +247,7 @@ export default function AppHeader() {
             <button
               onClick={() => navigate('today')}
               className="p-2 rounded-lg min-h-[66px] min-w-[66px] flex items-center justify-center transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: 'var(--text-secondary)', ...chip }}
               aria-label="Today"
               title="Jump to current week / month"
             >
@@ -275,7 +287,7 @@ export default function AppHeader() {
           <button
             onClick={() => setForecastOpen((v) => !v)}
             className="text-base font-medium px-3 py-2 rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95"
-            style={{ color: 'var(--text-secondary)' }}
+            style={{ color: 'var(--text-secondary)', ...chip }}
             title="Click to see 6-day forecast"
           >
             {weatherDisplay}
@@ -286,7 +298,7 @@ export default function AppHeader() {
         <button
           onClick={() => setClocksOpen((v) => !v)}
           className="text-lg font-semibold tabular-nums px-2 py-1 rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10 active:scale-95"
-          style={{ color: 'var(--text-primary)' }}
+          style={{ color: 'var(--text-primary)', ...chip }}
           title="Click to see other clocks"
         >
           {timeStr}

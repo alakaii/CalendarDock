@@ -384,12 +384,14 @@ function TopSlot({
   slot,
   isActive,
   recircActive,
+  chipFill,
   intent,
   onClick,
 }: {
   slot: SidebarSlot
   isActive: boolean
   recircActive: boolean
+  chipFill: boolean
   intent: Intent | null
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
 }) {
@@ -422,9 +424,11 @@ function TopSlot({
           className={`${btnBase} ${
             isActive
               ? 'bg-blue-500 text-white'
-              : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
+              : chipFill
+                ? 'text-[var(--text-sidebar)]'
+                : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
           } ${draggable.isDragging ? 'opacity-30' : ''}`}
-          style={{ touchAction: 'none' }}
+          style={{ touchAction: 'none', ...(chipFill && !isActive ? { background: 'var(--chip-bg)' } : {}) }}
           aria-label={slot.kind === 'item' ? PAGE_INFO[slot.pageId].label : 'Group'}
         >
           {slot.kind === 'item'
@@ -571,6 +575,9 @@ export default function Sidebar() {
   const themeMode    = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const fullscreenArt = useSettingsStore((s) => s.artMode === 'fullscreen')
+  const artIconFill   = useSettingsStore((s) => s.artIconFill)
+  // Rounded backdrop chips behind nav items — only over fullscreen art.
+  const chipFill = fullscreenArt && artIconFill
 
   const sidebarLayoutRaw = useSettingsStore((s) => s.sidebarLayout)
   const setSidebarLayout = useSettingsStore((s) => s.setSidebarLayout)
@@ -845,6 +852,7 @@ export default function Sidebar() {
               slot={slot}
               isActive={isActive}
               recircActive={recircActive}
+              chipFill={chipFill}
               intent={intent}
               onClick={(e) => {
                 if (slot.kind === 'item') {
@@ -864,7 +872,8 @@ export default function Sidebar() {
         {/* Theme toggle */}
         <button
           onClick={handleThemeToggle}
-          className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100`}
+          className={`${btnBase} text-[var(--text-sidebar)] ${chipFill ? '' : 'hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'}`}
+          style={chipFill ? { background: 'var(--chip-bg)' } : undefined}
           aria-label={`Theme: ${themeLabel}`}
           title={`Theme: ${themeLabel} — click to cycle`}
         >
@@ -875,7 +884,8 @@ export default function Sidebar() {
         {/* Sleep */}
         <button
           onClick={() => setMode('standby')}
-          className={`${btnBase} text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-60 hover:opacity-100`}
+          className={`${btnBase} text-[var(--text-sidebar)] ${chipFill ? '' : 'hover:bg-[var(--sidebar-hover)] opacity-60 hover:opacity-100'}`}
+          style={chipFill ? { background: 'var(--chip-bg)' } : undefined}
           aria-label="Sleep / Standby"
         >
           <ZzzIcon />
@@ -888,8 +898,11 @@ export default function Sidebar() {
           className={`${btnBase} ${
             activePage === 'settings'
               ? 'bg-blue-500 text-white'
-              : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
+              : chipFill
+                ? 'text-[var(--text-sidebar)]'
+                : 'text-[var(--text-sidebar)] hover:bg-[var(--sidebar-hover)] opacity-70 hover:opacity-100'
           }`}
+          style={chipFill && activePage !== 'settings' ? { background: 'var(--chip-bg)' } : undefined}
           aria-label="Settings"
         >
           <SettingsIcon />

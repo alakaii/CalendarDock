@@ -40,6 +40,9 @@
   --bg-surface-panel:  var(--bg-surface);
   --bg-header-panel:   var(--bg-header);
   --bg-sidebar-panel:  var(--bg-sidebar);
+  /* Icon-backdrop chip — mostly opaque so labels stay readable over art
+     regardless of the --ui-opacity slider. Theme-aware via --bg-surface. */
+  --chip-bg:           color-mix(in srgb, var(--bg-surface) 88%, transparent);
 }
 
 .art-fullscreen {

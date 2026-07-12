@@ -15,10 +15,12 @@ export default function GeneralSettings() {
   const uiOpacity       = useSettingsStore((s) => s.uiOpacity)
   const artScaleMode    = useSettingsStore((s) => s.artScaleMode)
   const artPixelated    = useSettingsStore((s) => s.artPixelated)
+  const artIconFill     = useSettingsStore((s) => s.artIconFill)
   const setArtMode      = useSettingsStore((s) => s.setArtMode)
   const setUiOpacity    = useSettingsStore((s) => s.setUiOpacity)
   const setArtScaleMode = useSettingsStore((s) => s.setArtScaleMode)
   const setArtPixelated = useSettingsStore((s) => s.setArtPixelated)
+  const setArtIconFill  = useSettingsStore((s) => s.setArtIconFill)
 
   const artFileInputRef = useRef<HTMLInputElement>(null)
   const [artUrl, setArtUrl] = useState<string | null>(null)
@@ -464,6 +466,33 @@ export default function GeneralSettings() {
                 <span
                   className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
                   style={{ transform: artPixelated ? 'translateX(20px)' : 'translateX(0)' }}
+                />
+              </span>
+            </button>
+
+            {/* Icon backdrop */}
+            <button
+              onClick={() => setArtIconFill(!artIconFill)}
+              className="flex items-center justify-between w-full px-4 py-3 rounded-xl border"
+              style={{
+                background: 'var(--bg-base)',
+                borderColor: 'var(--border)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <span className="flex flex-col items-start gap-0.5 text-left">
+                <span className="text-sm font-semibold">Icon Backdrop</span>
+                <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                  Rounded chips behind sidebar icons + header text so they stay readable over art
+                </span>
+              </span>
+              <span
+                className="relative inline-block w-11 h-6 rounded-full transition-colors flex-shrink-0"
+                style={{ background: artIconFill ? '#3b82f6' : 'var(--input-border)' }}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                  style={{ transform: artIconFill ? 'translateX(20px)' : 'translateX(0)' }}
                 />
               </span>
             </button>

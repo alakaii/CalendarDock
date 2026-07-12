@@ -49,6 +49,7 @@ const defaults: StoredSettings = {
   uiOpacity:    85,
   artScaleMode: 'fill',
   artPixelated: true,
+  artIconFill:  true,
   lists: [
     { id: 'chores', name: 'Chores', items: [] }
   ],
@@ -254,6 +255,10 @@ export const settingsService = {
 
   setArtPixelated(pixelated: boolean): void {
     store.set('artPixelated', pixelated)
+  },
+
+  setArtIconFill(fill: boolean): void {
+    store.set('artIconFill', fill)
   },
 
   setLaunchOnStartup(enabled: boolean): void {
