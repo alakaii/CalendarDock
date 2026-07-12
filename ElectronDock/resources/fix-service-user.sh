@@ -28,7 +28,7 @@ Environment=WAYLAND_DISPLAY=wayland-0
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$APP_UID/bus
 Environment=HOME=/home/$APP_USER
 WorkingDirectory=/home/$APP_USER
-ExecStart=/opt/CalendarDock/calendardock --ozone-platform=wayland --enable-features=UseOzonePlatform --password-store=basic
+ExecStart=/opt/CalendarDock/calendardock --ozone-platform=wayland --enable-features=UseOzonePlatform --password-store=gnome-libsecret
 Restart=on-failure
 RestartSec=5
 

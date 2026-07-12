@@ -166,7 +166,11 @@ Environment=WAYLAND_DISPLAY=wayland-0
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$KIOSK_UID/bus
 Environment=HOME=/home/$KIOSK_USER
 WorkingDirectory=/home/$KIOSK_USER
-ExecStart=$APP_PATH --ozone-platform=wayland --enable-features=UseOzonePlatform --password-store=basic
+# gnome-libsecret (NOT basic): with basic, Electron safeStorage reports
+# encryption unavailable unless the app opts into plaintext, so OAuth tokens
+# never decrypt under systemd. Requires the login keyring to auto-unlock
+# (blank keyring password) since GDM autologin can't unlock it.
+ExecStart=$APP_PATH --ozone-platform=wayland --enable-features=UseOzonePlatform --password-store=gnome-libsecret
 Restart=on-failure
 RestartSec=5
 
