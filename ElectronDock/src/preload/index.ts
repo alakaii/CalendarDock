@@ -84,10 +84,10 @@ setMealsGoogleTaskList: (accountId, taskListId) =>
       ipcRenderer.invoke('settings:set-camera-wake-calibration', { background, threshold }),
     setCameraWakeThreshold: (threshold) =>
       ipcRenderer.invoke('settings:set-camera-wake-threshold', { threshold }),
-    setPassiveDaySettings: (standbyMinutes, backlightOffMinutes) =>
-      ipcRenderer.invoke('settings:set-passive-day', { standbyMinutes, backlightOffMinutes }),
-    setActiveDaySettings: (standbyMinutes, sustainSeconds, holdMinutes) =>
-      ipcRenderer.invoke('settings:set-active-day', { standbyMinutes, sustainSeconds, holdMinutes }),
+    setPassiveDaySettings: (backlightOffMinutes) =>
+      ipcRenderer.invoke('settings:set-passive-day', { backlightOffMinutes }),
+    setActiveDaySettings: (sustainSeconds, holdMinutes) =>
+      ipcRenderer.invoke('settings:set-active-day', { sustainSeconds, holdMinutes }),
     setCalendarOrder: (ids) =>
       ipcRenderer.invoke('settings:set-calendar-order', { ids }),
     setMealsFontSize: (size) =>

@@ -76,14 +76,14 @@ export default function StandbyOverlay() {
     if (Math.abs(dx) > 20 || Math.abs(dy) > 20) return // too much movement
 
     if (exitGesture === 'single-tap') {
-      setMode('calendar')
+      setMode('app', 'touch-wake')
     } else {
       // Double-tap
       const now   = Date.now()
       const delta = now - lastTapRef.current
       lastTapRef.current = now
       if (delta < 350 && delta > 0) {
-        setMode('calendar')
+        setMode('app', 'touch-wake')
       }
     }
   }

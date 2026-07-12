@@ -136,9 +136,7 @@ const defaults: StoredSettings = {
   cameraWakeThreshold:        0.15,
   cameraWakePixelNoise:       20,
   cameraWakeBackground:       null,
-  passiveStandbyMinutes:      5,
   passiveBacklightOffMinutes: 15,
-  activeStandbyMinutes:       30,
   motionSustainSeconds:       6,
   activeHoldMinutes:          20,
   wyzeBridgeEmail:    '',
@@ -551,13 +549,11 @@ export const settingsService = {
     store.set('cameraWakeThreshold', threshold)
   },
 
-  setPassiveDaySettings(standbyMinutes: number, backlightOffMinutes: number): void {
-    store.set('passiveStandbyMinutes',      standbyMinutes)
+  setPassiveDaySettings(backlightOffMinutes: number): void {
     store.set('passiveBacklightOffMinutes', backlightOffMinutes)
   },
 
-  setActiveDaySettings(standbyMinutes: number, sustainSeconds: number, holdMinutes: number): void {
-    store.set('activeStandbyMinutes',  standbyMinutes)
+  setActiveDaySettings(sustainSeconds: number, holdMinutes: number): void {
     store.set('motionSustainSeconds',  sustainSeconds)
     store.set('activeHoldMinutes',     holdMinutes)
   },

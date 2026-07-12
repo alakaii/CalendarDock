@@ -11,17 +11,21 @@ interface UIState {
   dayMode: DayMode
   chipHiddenIds: Set<string>
   /**
-   * Manual deep-sleep override. True after the user taps "Deep Sleep" in
-   * Camera Wake settings — makes CameraWatcher treat the system as if
-   * inside the deep-sleep time window, so the backlight goes off
-   * immediately on entering standby instead of waiting passiveBacklight­
-   * OffMinutes. Auto-clears the next time mode flips back to 'app'.
+   * Manual deep-sleep override. True after the user taps "Deep Sleep Now" in
+   * Camera Wake settings — makes DisplayPowerManager treat the system as if
+   * inside the deep-sleep time window, so the backlight goes off immediately
+   * on entering standby instead of waiting passiveBacklightOffMinutes.
+   * Auto-clears the next time mode flips back to exactly 'app' (a touch wake).
+   * StandbyOverlay MUST call setMode('app') — an invalid mode value would
+   * skip this auto-clear and leave every later standby cutting the backlight
+   * immediately.
    */
   forceDeepSleep: boolean
   /** Reactive calendar display state — updated by CalendarView, read by AppHeader */
   calendarDate: Date
   calendarView: CalView
-  setMode: (mode: AppMode) => void
+  /** cause is an optional low-noise label for the journal (e.g. 'inactivity-timer'). */
+  setMode: (mode: AppMode, cause?: string) => void
   setPage: (page: AppPage) => void
   setDayMode: (mode: DayMode) => void
   setForceDeepSleep: (force: boolean) => void
@@ -42,10 +46,27 @@ export const useUIStore = create<UIState>((set) => ({
   // Anything else (going back into standby on its own from the inactivity
   // timer) leaves the flag alone — but it should already be false there,
   // since only the explicit button sets it true.
-  setMode: (mode) => set((s) => mode === 'app' && s.forceDeepSleep ? { mode, forceDeepSleep: false } : { mode }),
+  setMode: (mode: AppMode, cause?: string) =>
+    set((s) => {
+      if (mode === s.mode) return {}
+      console.warn(`[standby] ${mode === 'standby' ? 'enter' : 'exit'} (cause: ${cause ?? 'unspecified'})`)
+      if (mode === 'app' && s.forceDeepSleep) {
+        console.warn('[standby] forceDeepSleep cleared (cause: wake-to-app)')
+        return { mode, forceDeepSleep: false }
+      }
+      return { mode }
+    }),
   setPage: (page) => set({ activePage: page, mode: 'app' }),
-  setDayMode: (dayMode) => set({ dayMode }),
-  setForceDeepSleep: (forceDeepSleep) => set({ forceDeepSleep }),
+  setDayMode: (dayMode) =>
+    set((s) => {
+      if (dayMode === s.dayMode) return {}
+      console.warn(`[standby] dayMode ${dayMode} (room ${dayMode === 'active' ? 'occupied' : 'empty'})`)
+      return { dayMode }
+    }),
+  setForceDeepSleep: (forceDeepSleep) => {
+    console.warn(`[standby] forceDeepSleep ${forceDeepSleep ? 'set' : 'cleared'}`)
+    set({ forceDeepSleep })
+  },
   toggleChipHidden: (calendarId) =>
     set((s) => {
       const next = new Set(s.chipHiddenIds)

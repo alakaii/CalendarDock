@@ -6,6 +6,7 @@ import { useTheme } from './hooks/useTheme'
 import AppShell from './components/shell/AppShell'
 import StandbyOverlay from './components/standby/StandbyOverlay'
 import CameraWatcher from './components/shell/CameraWatcher'
+import DisplayPowerManager from './components/shell/DisplayPowerManager'
 import VirtualKeyboard from './components/shell/VirtualKeyboard'
 
 export default function App() {
@@ -13,10 +14,10 @@ export default function App() {
   const loadSettings          = useSettingsStore((s) => s.loadFromMain)
   const standbyTimeoutMinutes = useSettingsStore((s) => s.standbyTimeoutMinutes)
 
-  // Always honor the user's explicit standby timeout. Earlier the value was
-  // overridden by camera-wake's passiveStandbyMinutes / activeStandbyMinutes
-  // when cameraWakeEnabled was true, which made the manual setting in the
-  // UI silently ineffective ("I set 2 min but it sat on calendar for 30").
+  // Always honor the user's explicit standby timeout. Earlier a pair of
+  // camera-wake standby overrides (since removed) hijacked this value when
+  // cameraWakeEnabled was true, which made the manual setting in the UI
+  // silently ineffective ("I set 2 min but it sat on calendar for 30").
   // Camera now only drives status (passive/active dayMode); timing is what
   // the user typed.
   const standbyTimeoutMs = standbyTimeoutMinutes * 60_000
@@ -34,6 +35,7 @@ export default function App() {
 
   return (
     <>
+      <DisplayPowerManager />
       <CameraWatcher />
       {mode === 'standby' ? <StandbyOverlay /> : <AppShell />}
       <VirtualKeyboard />

@@ -253,15 +253,15 @@ ipcMain.handle(
 
   ipcMain.handle(
     'settings:set-passive-day',
-    async (_event, { standbyMinutes, backlightOffMinutes }: { standbyMinutes: number; backlightOffMinutes: number }) => {
-      settingsService.setPassiveDaySettings(standbyMinutes, backlightOffMinutes)
+    async (_event, { backlightOffMinutes }: { backlightOffMinutes: number }) => {
+      settingsService.setPassiveDaySettings(backlightOffMinutes)
     }
   )
 
   ipcMain.handle(
     'settings:set-active-day',
-    async (_event, { standbyMinutes, sustainSeconds, holdMinutes }: { standbyMinutes: number; sustainSeconds: number; holdMinutes: number }) => {
-      settingsService.setActiveDaySettings(standbyMinutes, sustainSeconds, holdMinutes)
+    async (_event, { sustainSeconds, holdMinutes }: { sustainSeconds: number; holdMinutes: number }) => {
+      settingsService.setActiveDaySettings(sustainSeconds, holdMinutes)
     }
   )
 

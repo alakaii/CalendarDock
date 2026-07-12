@@ -16,6 +16,9 @@ export function registerSystemHandlers(win: BrowserWindow): void {
     const arg = on ? 'on' : 'off'
     try {
       await execAsync(`sudo -n /usr/local/bin/calendardock-display-power ${arg}`)
+      // Log success too so the journal shows every backlight transition, not
+      // just failures — makes standby/sleep timing diagnosable after the fact.
+      console.warn(`[backlight] setDisplayPower(${arg}) ok`)
     } catch (err) {
       // Non-fatal: log so it shows up in journalctl, but don't crash the
       // standby flow. Most likely causes: helper not deployed yet (first

@@ -20,9 +20,7 @@ export default function CameraWakeSettings() {
   const deepSleepEnd               = useSettingsStore((s) => s.deepSleepEnd)
   const threshold                  = useSettingsStore((s) => s.cameraWakeThreshold)
   const background                 = useSettingsStore((s) => s.cameraWakeBackground)
-  const passiveStandbyMinutes      = useSettingsStore((s) => s.passiveStandbyMinutes)
   const passiveBacklightOffMinutes = useSettingsStore((s) => s.passiveBacklightOffMinutes)
-  const activeStandbyMinutes       = useSettingsStore((s) => s.activeStandbyMinutes)
   const motionSustainSeconds       = useSettingsStore((s) => s.motionSustainSeconds)
   const activeHoldMinutes          = useSettingsStore((s) => s.activeHoldMinutes)
 
@@ -429,7 +427,7 @@ export default function CameraWakeSettings() {
                 // Standby only — slideshow plays, backlight follows the
                 // normal passiveBacklightOffMinutes timer (or immediate
                 // if the deep-sleep window happens to be active right now).
-                useUIStore.getState().setMode('standby')
+                useUIStore.getState().setMode('standby', 'sleep-button')
               }}
               className="w-full px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px] transition-colors"
               style={{ background: '#3b82f6', color: '#fff' }}
@@ -443,7 +441,7 @@ export default function CameraWakeSettings() {
                 // the deep-sleep schedule. Equivalent to being inside the
                 // deep-sleep window for one cycle.
                 useUIStore.getState().setForceDeepSleep(true)
-                useUIStore.getState().setMode('standby')
+                useUIStore.getState().setMode('standby', 'deep-sleep-button')
               }}
               className="w-full px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px] transition-colors"
               style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}
@@ -460,31 +458,20 @@ export default function CameraWakeSettings() {
         <p style={labelStyle}>Passive Day</p>
         <div style={cardStyle} className="space-y-4">
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Default daytime mode. Camera on, short standby, backlight cuts after a longer idle period.
+            Default daytime mode. While in standby the slideshow stays lit as long as the room is
+            occupied; once it goes empty the screen turns off after the delay below.
             Switches to Active Day after sustained motion.
           </p>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Standby after (minutes)</p>
-              <input
-                type="number"
-                min={1}
-                max={60}
-                value={passiveStandbyMinutes}
-                onChange={(e) => setPassiveDaySettings(Number(e.target.value), passiveBacklightOffMinutes)}
-                className="w-full px-3 py-2 rounded-xl text-sm outline-none min-h-[44px]"
-                style={inputStyle}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Backlight off after (minutes in standby)</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Turn screen off after room empty for (minutes)</p>
               <input
                 type="number"
                 min={1}
                 max={120}
                 value={passiveBacklightOffMinutes}
-                onChange={(e) => setPassiveDaySettings(passiveStandbyMinutes, Number(e.target.value))}
+                onChange={(e) => setPassiveDaySettings(Number(e.target.value))}
                 className="w-full px-3 py-2 rounded-xl text-sm outline-none min-h-[44px]"
                 style={inputStyle}
               />
@@ -499,22 +486,10 @@ export default function CameraWakeSettings() {
         <div style={cardStyle} className="space-y-4">
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             Triggered automatically when continuous motion is detected for several seconds.
-            Longer standby and backlight stays on. Returns to Passive Day after a period without sustained motion.
+            The screen stays lit while the room is occupied. Returns to Passive Day after a period without sustained motion.
           </p>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Standby after (minutes)</p>
-              <input
-                type="number"
-                min={1}
-                max={120}
-                value={activeStandbyMinutes}
-                onChange={(e) => setActiveDaySettings(Number(e.target.value), motionSustainSeconds, activeHoldMinutes)}
-                className="w-full px-3 py-2 rounded-xl text-sm outline-none min-h-[44px]"
-                style={inputStyle}
-              />
-            </div>
             <div className="space-y-1.5">
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Return to Passive after (minutes)</p>
               <input
@@ -522,7 +497,7 @@ export default function CameraWakeSettings() {
                 min={1}
                 max={120}
                 value={activeHoldMinutes}
-                onChange={(e) => setActiveDaySettings(activeStandbyMinutes, motionSustainSeconds, Number(e.target.value))}
+                onChange={(e) => setActiveDaySettings(motionSustainSeconds, Number(e.target.value))}
                 className="w-full px-3 py-2 rounded-xl text-sm outline-none min-h-[44px]"
                 style={inputStyle}
               />
@@ -540,7 +515,7 @@ export default function CameraWakeSettings() {
                 max={15}
                 step={1}
                 value={motionSustainSeconds}
-                onChange={(e) => setActiveDaySettings(activeStandbyMinutes, Number(e.target.value), activeHoldMinutes)}
+                onChange={(e) => setActiveDaySettings(Number(e.target.value), activeHoldMinutes)}
                 className="flex-1 accent-blue-500"
               />
               <span className="text-sm font-semibold tabular-nums w-12 text-right" style={{ color: 'var(--text-primary)' }}>
