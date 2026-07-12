@@ -51,6 +51,8 @@ interface SettingsState extends AppSettings {
   setWyzeBridgeConfig: (email: string, password: string, host: string, apiId: string, apiKey: string) => void
   setRingSnapshotInterval: (seconds: number) => void
   setTeslaConnectionMode: (mode: 'fleet' | 'local') => void
+  setIcloudAlbumUrls: (urls: string[]) => void
+  setIcloudPhotosEnabled: (enabled: boolean) => void
 }
 
 const defaults: AppSettings = {
@@ -151,6 +153,8 @@ const defaults: AppSettings = {
   dropboxEnabled:      false,
   dropboxLastSync:     0,
   dropboxAccountEmail: '',
+  icloudAlbumUrls:     [],
+  icloudPhotosEnabled: false,
   cameraWakeEnabled:          false,
   deepSleepStart:             '21:00',
   deepSleepEnd:               '06:00',
@@ -453,5 +457,15 @@ setMealsGoogleTaskList: (accountId, taskListId) => {
   setTeslaConnectionMode: (mode) => {
     window.api.tesla.setConnectionMode(mode)
     set({ teslaConnectionMode: mode })
+  },
+
+  setIcloudAlbumUrls: (urls) => {
+    window.api.settings.setIcloudAlbumUrls(urls)
+    set({ icloudAlbumUrls: urls })
+  },
+
+  setIcloudPhotosEnabled: (enabled) => {
+    window.api.settings.setIcloudPhotosEnabled(enabled)
+    set({ icloudPhotosEnabled: enabled })
   },
 }))

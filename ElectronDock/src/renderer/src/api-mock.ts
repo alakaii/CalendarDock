@@ -139,7 +139,12 @@ const mock: CalendarDockAPI = {
   },
   photos: {
     getList: async () => [],
-    onListUpdated: () => {}
+    onListUpdated: () => {},
+    advance: async () => {},
+    setPaused: async () => {},
+    wakeFromDeepSleep: async () => {},
+    syncIcloud: async () => ({ ok: true, count: 0, error: '' }),
+    getIcloudStatus: async () => ({ enabled: false, albums: [], lastSync: 0, photoCount: 0, lastError: '', isSyncing: false }),
   },
   weather: {
     fetch: async () => ({

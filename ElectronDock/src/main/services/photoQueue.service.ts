@@ -15,6 +15,7 @@ import { existsSync } from 'fs'
 import { settingsService } from './settings.service'
 import { photosService } from './photos.service'
 import { dropboxService } from './dropbox.service'
+import { icloudService } from './icloud.service'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -213,6 +214,9 @@ export const photoQueueService = {
 
   wakeFromDeepSleep(): void {
     console.log('[photoQueue] Dawn signal — refreshing index')
+    // Refresh the iCloud Shared Album alongside Dropbox. Independent of the
+    // Dropbox source and its isWorking guard — an iCloud-only kiosk still syncs.
+    icloudService.syncIfEnabled(mainWin ?? undefined).catch((err) => console.warn('[icloud] dawn sync failed:', err))
     if (isWorking) {
       console.log('[photoQueue] Already working, will retry at next dawn')
       return

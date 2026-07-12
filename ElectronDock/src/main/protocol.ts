@@ -3,6 +3,7 @@ import { join, resolve, extname } from 'path'
 import { readFile } from 'fs/promises'
 import { settingsService } from './services/settings.service'
 import { backgroundArtService } from './services/background-art.service'
+import { icloudService } from './services/icloud.service'
 
 const MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -24,6 +25,10 @@ export async function photosProtocolHandler(request: Request): Promise<Response>
     let baseFolder: string
     if (url.hostname === 'art') {
       baseFolder = backgroundArtService.dir()
+    } else if (icloudService.owns(filename)) {
+      // iCloud Shared Album photos live in their own cache folder, outside the
+      // configured/Dropbox photo folder. Route by the 'icloud-' filename prefix.
+      baseFolder = icloudService.cacheDir()
     } else {
       const configuredFolder = settingsService.getAll().photoFolderPath
       if (!configuredFolder) {
