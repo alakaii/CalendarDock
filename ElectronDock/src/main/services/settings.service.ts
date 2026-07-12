@@ -23,6 +23,10 @@ type StoredSettings = AppSettings & {
   teslaFleetEncryptedRefreshToken: string
   // Tesla local Gateway (TEDAPI) Wi-Fi password, encrypted — never sent to renderer
   teslaGatewayEncryptedPassword: string
+  // Legacy single Dropbox folder path — retired in favor of dropboxFolderPaths.
+  // Kept here (out of the renderer AppSettings) only so the migration can read
+  // whatever value production kiosks already persisted.
+  dropboxFolderPath?: string
   // iCloud Shared Albums — sync bookkeeping (not part of the renderer AppSettings)
   icloudLastSync:     number
   icloudPhotoCount:   number
@@ -136,7 +140,7 @@ const defaults: StoredSettings = {
   fridgeGoogleAccountId:  '',
   fridgeGoogleTaskListId: '',
   dropboxAppKey:       '',
-  dropboxFolderPath:   '',
+  dropboxFolderPaths:  [],
   dropboxPhotoCount:   200,
   dropboxEnabled:      false,
   dropboxLastSync:     0,
@@ -170,6 +174,17 @@ const store = new Store<StoredSettings>({
   name: 'settings',
   defaults
 })
+
+// Migration: seed the multi-folder list from the retired single-path setting
+// that shipped on production kiosks. Idempotent — only fires while the new
+// list is still empty, so it's a no-op on every subsequent run.
+{
+  const paths  = store.get('dropboxFolderPaths')
+  const legacy = (store.get('dropboxFolderPath') ?? '').trim()
+  if ((!paths || paths.length === 0) && legacy) {
+    store.set('dropboxFolderPaths', [legacy])
+  }
+}
 
 export const settingsService = {
   getAll(): StoredSettings {
@@ -555,7 +570,7 @@ export const settingsService = {
   setDropboxAccountEmail(email: string): void { store.set('dropboxAccountEmail', email) },
   setDropboxEnabled(enabled: boolean): void   { store.set('dropboxEnabled', enabled) },
   setDropboxLastSync(ts: number): void        { store.set('dropboxLastSync', ts) },
-  setDropboxFolderPath(path: string): void    { store.set('dropboxFolderPath', path) },
+  setDropboxFolderPaths(paths: string[]): void { store.set('dropboxFolderPaths', paths) },
   setDropboxPhotoCount(count: number): void   { store.set('dropboxPhotoCount', count) },
 
   // ---- iCloud Shared Albums ----

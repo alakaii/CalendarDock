@@ -14,7 +14,7 @@ import { unlink, readdir, stat, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { settingsService } from './settings.service'
 import { photosService } from './photos.service'
-import { dropboxService } from './dropbox.service'
+import { dropboxService, cacheNameForPath } from './dropbox.service'
 import { icloudService } from './icloud.service'
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ export const photoQueueService = {
     mainWin = win
     const settings = settingsService.getAll()
 
-    if (!settings.dropboxEnabled || !settings.dropboxFolderPath) {
+    if (!settings.dropboxEnabled || settings.dropboxFolderPaths.length === 0) {
       // Local folder mode — just start the chokidar watcher
       if (settings.photoFolderPath) {
         photosService.startWatcher(settings.photoFolderPath, win)
@@ -145,8 +145,8 @@ export const photoQueueService = {
     try {
       emit(0, 'Fetching photo index from Dropbox…')
       const settings  = settingsService.getAll()
-      const allPhotos = await dropboxService.listAllPhotos(settings.dropboxFolderPath)
-      if (allPhotos.length === 0) throw new Error('No photos found in that Dropbox folder.')
+      const allPhotos = await dropboxService.listAllPhotosMulti(settings.dropboxFolderPaths)
+      if (allPhotos.length === 0) throw new Error('No photos found in the configured Dropbox folders.')
 
       shuffledQueue   = [...allPhotos]
       fisherYates(shuffledQueue)
@@ -231,7 +231,7 @@ export const photoQueueService = {
 
     try {
       const settings = settingsService.getAll()
-      if (!settings.dropboxEnabled || !settings.dropboxFolderPath) {
+      if (!settings.dropboxEnabled || settings.dropboxFolderPaths.length === 0) {
         isWorking = false
         return
       }
@@ -248,7 +248,7 @@ export const photoQueueService = {
       emit(10, `Evicted ${toEvict.length} viewed photos`)
 
       // 2. Fetch a fresh photo index from Dropbox and re-shuffle
-      const allPhotos = await dropboxService.listAllPhotos(settings.dropboxFolderPath)
+      const allPhotos = await dropboxService.listAllPhotosMulti(settings.dropboxFolderPaths)
       shuffledQueue   = [...allPhotos]
       fisherYates(shuffledQueue)
       queuePointer    = downloadedFiles.length  // skip re-downloading what we still have
@@ -266,7 +266,7 @@ export const photoQueueService = {
         })
 
         const newFiles = toBatch
-          .map((p) => p.split('/').pop()!)
+          .map((p) => cacheNameForPath(p))
           .filter((f) => existsSync(join(cacheDir, f)))
         downloadedFiles.push(...newFiles)
       }
@@ -319,7 +319,7 @@ export const photoQueueService = {
       // 3. Download. Per-file failures are swallowed by downloadBatch.
       await dropboxService.downloadBatch(toBatch, cacheDir, () => {})
       const newFiles = toBatch
-        .map((p) => p.split('/').pop()!)
+        .map((p) => cacheNameForPath(p))
         .filter((f) => existsSync(join(cacheDir, f)))
 
       if (newFiles.length === 0) {

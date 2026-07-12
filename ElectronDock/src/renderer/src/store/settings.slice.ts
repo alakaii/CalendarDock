@@ -53,6 +53,7 @@ interface SettingsState extends AppSettings {
   setTeslaConnectionMode: (mode: 'fleet' | 'local') => void
   setIcloudAlbumUrls: (urls: string[]) => void
   setIcloudPhotosEnabled: (enabled: boolean) => void
+  setDropboxFolderPaths: (paths: string[]) => void
 }
 
 const defaults: AppSettings = {
@@ -148,7 +149,7 @@ const defaults: AppSettings = {
   fridgeGoogleAccountId:  '',
   fridgeGoogleTaskListId: '',
   dropboxAppKey:       '',
-  dropboxFolderPath:   '',
+  dropboxFolderPaths:  [],
   dropboxPhotoCount:   200,
   dropboxEnabled:      false,
   dropboxLastSync:     0,
@@ -467,5 +468,10 @@ setMealsGoogleTaskList: (accountId, taskListId) => {
   setIcloudPhotosEnabled: (enabled) => {
     window.api.settings.setIcloudPhotosEnabled(enabled)
     set({ icloudPhotosEnabled: enabled })
+  },
+
+  setDropboxFolderPaths: (paths) => {
+    window.api.dropbox.setConfig({ folderPaths: paths })
+    set({ dropboxFolderPaths: paths })
   },
 }))

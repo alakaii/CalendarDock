@@ -49,6 +49,18 @@ const PHOTO_EXTS    = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Collision-safe cache filename for a Dropbox path. The basename alone isn't
+ * unique across folders (two folders can each hold an IMG_001.jpg), so prefix
+ * an 8-char hash of the full path_lower. The extension is preserved so the
+ * slideshow filter and protocol handler still recognize the file type.
+ */
+export function cacheNameForPath(path: string): string {
+  const base = path.split('/').pop() || 'photo'
+  const hash = createHash('sha1').update(path).digest('hex').slice(0, 8)
+  return `${hash}-${base}`
+}
+
 function generatePKCE() {
   const verifier  = randomBytes(96).toString('base64url')
   const challenge = createHash('sha256').update(verifier).digest('base64url')
@@ -231,6 +243,29 @@ export const dropboxService = {
     return photos
   },
 
+  /**
+   * Union of `listAllPhotos` across every configured folder, deduped by
+   * path_lower (folders can nest, so the same file may appear twice). A folder
+   * that fails to list is skipped with a warning so one bad path can't kill the
+   * whole queue.
+   */
+  async listAllPhotosMulti(folderPaths: string[]): Promise<string[]> {
+    const seen: Set<string> = new Set()
+    const combined: string[] = []
+    for (const folderPath of folderPaths) {
+      if (!folderPath) continue
+      try {
+        const photos = await this.listAllPhotos(folderPath)
+        for (const p of photos) {
+          if (!seen.has(p)) { seen.add(p); combined.push(p) }
+        }
+      } catch (err) {
+        console.warn(`[dropbox] Skipping folder "${folderPath}": ${(err as Error).message}`)
+      }
+    }
+    return combined
+  },
+
   // ── Batch download (used by photoQueueService) ───────────────────────────────
 
   /**
@@ -267,7 +302,7 @@ export const dropboxService = {
             })
             if (!r.ok) return
             const buf      = Buffer.from(await r.arrayBuffer())
-            const filename = path.split('/').pop()!
+            const filename = cacheNameForPath(path)
             await writeFile(join(cacheDir, filename), buf)
             downloaded++
             onProgress?.(downloaded, paths.length)

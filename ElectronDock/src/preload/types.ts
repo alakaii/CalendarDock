@@ -484,7 +484,13 @@ export interface AppSettings {
   fridgeGoogleTaskListId: string
   // Dropbox (tokens stored encrypted in main process only — not in this object)
   dropboxAppKey:       string
-  dropboxFolderPath:   string
+  /**
+   * Dropbox folders to pull photos from. The photo index is the deduped union
+   * of a recursive listing of each. Multiple entries are needed because
+   * recursive list_folder does NOT follow Dropbox shortcut links, so an album
+   * of shortcuts must be replaced by its real target folders.
+   */
+  dropboxFolderPaths:  string[]
   dropboxPhotoCount:   number
   dropboxEnabled:      boolean
   dropboxLastSync:     number
@@ -619,7 +625,7 @@ export interface CalendarDockAPI {
     disconnect:   () => Promise<void>
     syncNow:      () => Promise<void>
     getStatus:    () => Promise<{ connected: boolean; email: string; lastSync: number; isSyncing: boolean }>
-    setConfig:    (cfg: { folderPath?: string; photoCount?: number; enabled?: boolean }) => Promise<void>
+    setConfig:    (cfg: { folderPaths?: string[]; photoCount?: number; enabled?: boolean }) => Promise<void>
     onProgress:   (cb: (pct: number, status: string) => void) => void
   }
   cameras: {

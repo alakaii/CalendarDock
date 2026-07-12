@@ -10,11 +10,12 @@ export default function PhotoSettings() {
   const loadSettings         = useSettingsStore((s) => s.loadFromMain)
 
   // Dropbox state
-  const dropboxEnabled      = useSettingsStore((s) => s.dropboxEnabled)
-  const dropboxAccountEmail = useSettingsStore((s) => s.dropboxAccountEmail)
-  const dropboxFolderPath   = useSettingsStore((s) => s.dropboxFolderPath)
-  const dropboxPhotoCount   = useSettingsStore((s) => s.dropboxPhotoCount)
-  const dropboxLastSync     = useSettingsStore((s) => s.dropboxLastSync)
+  const dropboxEnabled       = useSettingsStore((s) => s.dropboxEnabled)
+  const dropboxAccountEmail  = useSettingsStore((s) => s.dropboxAccountEmail)
+  const dropboxFolderPaths   = useSettingsStore((s) => s.dropboxFolderPaths)
+  const setDropboxFolderPaths = useSettingsStore((s) => s.setDropboxFolderPaths)
+  const dropboxPhotoCount    = useSettingsStore((s) => s.dropboxPhotoCount)
+  const dropboxLastSync      = useSettingsStore((s) => s.dropboxLastSync)
 
   const dropboxConnected = !!dropboxAccountEmail
 
@@ -25,7 +26,7 @@ export default function PhotoSettings() {
   const setIcloudPhotosEnabled = useSettingsStore((s) => s.setIcloudPhotosEnabled)
 
   // Local mutable Dropbox config state
-  const [folderInput, setFolderInput] = useState(dropboxFolderPath || '')
+  const [folderInput, setFolderInput] = useState('')
   const [photoCount, setPhotoCount]   = useState(dropboxPhotoCount ?? 200)
   const [syncing, setSyncing]         = useState(false)
   const [syncPct, setSyncPct]         = useState(0)
@@ -58,9 +59,15 @@ export default function PhotoSettings() {
     loadSettings()
   }
 
-  const handleFolderSave = () => {
-    window.api.dropbox.setConfig({ folderPath: folderInput.trim() })
-    loadSettings()
+  const handleFolderAdd = () => {
+    const path = folderInput.trim()
+    if (!path || dropboxFolderPaths.includes(path)) return
+    setDropboxFolderPaths([...dropboxFolderPaths, path])
+    setFolderInput('')
+  }
+
+  const handleFolderRemove = (path: string) => {
+    setDropboxFolderPaths(dropboxFolderPaths.filter((p) => p !== path))
   }
 
   // Touch on Wayland sometimes misses onTouchEnd if the finger releases off
@@ -281,11 +288,12 @@ export default function PhotoSettings() {
             )}
           </div>
 
-          {/* Folder path */}
+          {/* Folder paths */}
           <div className="rounded-xl p-4 space-y-2" style={cardStyle}>
-            <p className="text-sm font-medium" style={labelStyle}>Dropbox folder path</p>
+            <p className="text-sm font-medium" style={labelStyle}>Dropbox folder paths</p>
             <p className="text-xs" style={subStyle}>
-              Path inside your Dropbox, e.g. <span className="font-mono">/Photos/Family</span>
+              One or more paths inside your Dropbox, e.g. <span className="font-mono">/Photos/Family</span>.
+              Add each album folder separately — shortcut links inside a folder are not followed.
             </p>
             <div className="flex gap-2">
               <input
@@ -293,13 +301,29 @@ export default function PhotoSettings() {
                 placeholder="/Photos/Family"
                 value={folderInput}
                 onChange={(e) => setFolderInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleFolderSave()}
+                onKeyDown={(e) => e.key === 'Enter' && handleFolderAdd()}
                 className="flex-1 rounded-lg px-3 py-2 text-sm font-mono"
                 style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               />
-              <TouchButton variant="secondary" onClick={handleFolderSave}>Save</TouchButton>
+              <TouchButton variant="secondary" onClick={handleFolderAdd} disabled={!folderInput.trim()}>
+                Add
+              </TouchButton>
             </div>
           </div>
+
+          {/* Folder list */}
+          {dropboxFolderPaths.length > 0 && (
+            <div className="space-y-2">
+              {dropboxFolderPaths.map((path) => (
+                <div key={path} className="rounded-xl p-3 flex items-center gap-3" style={cardStyle}>
+                  <p className="flex-1 min-w-0 text-sm font-mono truncate" style={labelStyle}>{path}</p>
+                  <TouchButton variant="destructive" onClick={() => handleFolderRemove(path)}>
+                    Remove
+                  </TouchButton>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Photo count */}
           <div className="rounded-xl p-4 space-y-2" style={cardStyle}>

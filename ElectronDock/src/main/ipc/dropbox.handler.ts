@@ -22,11 +22,11 @@ export function registerDropboxHandlers(): void {
   })
 
   ipcMain.handle('dropbox:set-config', (_e, cfg: {
-    folderPath?:  string
+    folderPaths?: string[]
     photoCount?:  number
     enabled?:     boolean
   }) => {
-    if (cfg.folderPath  !== undefined) settingsService.setDropboxFolderPath(cfg.folderPath)
+    if (cfg.folderPaths !== undefined) settingsService.setDropboxFolderPaths(cfg.folderPaths)
     if (cfg.photoCount  !== undefined) settingsService.setDropboxPhotoCount(cfg.photoCount)
     if (cfg.enabled     !== undefined) settingsService.setDropboxEnabled(cfg.enabled)
   })
