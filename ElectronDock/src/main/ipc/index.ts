@@ -4,6 +4,7 @@ import { registerDropboxHandlers } from './dropbox.handler'
 import { registerAuthHandlers } from './auth.handler'
 import { registerCalendarHandlers } from './calendar.handler'
 import { registerCamerasHandlers } from './cameras.handler'
+import { registerEventLogHandlers } from './eventlog.handler'
 import { registerListsHandlers } from './lists.handler'
 import { registerLogHandlers } from './log.handler'
 import { registerPhotosHandlers } from './photos.handler'
@@ -23,6 +24,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   registerDropboxHandlers()
   registerCalendarHandlers()
   registerCamerasHandlers()
+  registerEventLogHandlers()
   registerListsHandlers()
   registerLogHandlers()
   registerPhotosHandlers()

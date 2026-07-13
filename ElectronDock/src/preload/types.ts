@@ -572,6 +572,17 @@ export interface WeatherForecastDay {
   conditionDescription: string
 }
 
+// ---- Activity event log ----
+
+export interface EventLogEntry {
+  /** ms epoch */
+  ts: number
+  /** lowercased bracket prefix, e.g. 'standby', 'backlight', 'icloud' */
+  source: string
+  /** message with the leading [prefix] stripped */
+  message: string
+}
+
 // The typed API surface exposed to the renderer via contextBridge
 export interface CalendarDockAPI {
   auth: {
@@ -755,6 +766,10 @@ export interface CalendarDockAPI {
   }
   log: {
     forward: (level: 'error' | 'warn', args: string[]) => Promise<void>
+  }
+  logs: {
+    /** Buffered Activity events, newest first, optionally filtered by source. */
+    get: (opts?: { source?: string; limit?: number }) => Promise<EventLogEntry[]>
   }
   updates: {
     check: () => Promise<UpdateCheckResult>
