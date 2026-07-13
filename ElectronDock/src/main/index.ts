@@ -31,6 +31,7 @@ import { icloudService } from './services/icloud.service'
 import { wyzeBridgeService } from './services/wyze-bridge.service'
 import { ringService } from './services/ring.service'
 import { bootstrapCredentialsFromEnv } from './services/credentials-bootstrap.service'
+import { initEventLog } from './services/eventlog.service'
 import { is } from '@electron-toolkit/utils'
 
 // ── Kiosk / touchscreen flags (must be set before app.ready) ────────────────
@@ -72,6 +73,10 @@ if (!gotLock) {
   })
 
   app.whenReady().then(async () => {
+    // Start the Activity event log first so it can tee bracketed console
+    // lines from every service that inits below into its ring buffer.
+    initEventLog()
+
     // Prevent display sleep and app suspension — 24/7 kiosk operation
     powerSaveBlocker.start('prevent-display-sleep')
     powerSaveBlocker.start('prevent-app-suspension')

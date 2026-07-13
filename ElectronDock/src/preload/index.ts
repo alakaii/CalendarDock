@@ -235,6 +235,10 @@ setMealsGoogleTaskList: (accountId, taskListId) =>
     forward: (level, args) => ipcRenderer.invoke('log:renderer', { level, args }),
   },
 
+  logs: {
+    get: (opts) => ipcRenderer.invoke('logs:get', opts),
+  },
+
   updates: {
     check:       () => ipcRenderer.invoke('updates:check'),
     install:     () => ipcRenderer.invoke('updates:install'),

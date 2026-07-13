@@ -14,10 +14,12 @@ import CameraWakeSettings from '../settings/CameraWakeSettings'
 import RingSettings from '../settings/RingSettings'
 import TeslaSettings from '../settings/TeslaSettings'
 import UpdatesSettings from '../settings/UpdatesSettings'
+import ActivityLog from '../settings/ActivityLog'
 
 type Section =
   | 'general' | 'accounts' | 'calendars' | 'clocks' | 'weather' | 'photos' | 'standby'
   | 'wake' | 'chores' | 'meals' | 'lists' | 'cameras' | 'ring' | 'tesla' | 'updates'
+  | 'activity'
 
 const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'general',   label: 'General',     icon: '⚙️' },
@@ -34,6 +36,7 @@ const navItems: { id: Section; label: string; icon: string }[] = [
   { id: 'cameras',   label: 'Wyze Camera', icon: '📹' },
   { id: 'ring',      label: 'Ring',        icon: '🔔' },
   { id: 'tesla',     label: 'Powerwall',   icon: '🔋' },
+  { id: 'activity',  label: 'Activity',    icon: '📜' },
   { id: 'updates',   label: 'Updates',     icon: '⬆️' },
 ]
 
@@ -86,6 +89,7 @@ export default function SettingsPage() {
         {section === 'cameras'   && <CameraSettings />}
         {section === 'ring'      && <RingSettings />}
         {section === 'tesla'     && <TeslaSettings />}
+        {section === 'activity'  && <ActivityLog />}
         {section === 'updates'   && <UpdatesSettings />}
       </div>
     </div>
