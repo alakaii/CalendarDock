@@ -10,6 +10,13 @@ interface PhotoSlideshowProps {
   cropMode?: SlideshowCropMode
   /** 30–100. Reserved for face-detection-driven anchoring (lands next). */
   focusSafeZonePercent?: number
+  /**
+   * Tailwind background class for the slide container. Defaults to `bg-black`
+   * (fullscreen standby). In the "calendar window" standby framing pass
+   * `bg-transparent` so any letterbox gaps reveal the art + veil behind the
+   * rect instead of a solid black block.
+   */
+  background?: string
 }
 
 export interface PhotoSlideshowHandle {
@@ -47,6 +54,7 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       transitionDurationMs = 1500,
       cropMode = 'fit',
       focusSafeZonePercent: _focusSafeZonePercent = 60,
+      background = 'bg-black',
     },
     ref
   ) {
@@ -201,7 +209,7 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
     }))
 
     if (sortedPhotos.length === 0) {
-      return <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-950" />
+      return <div className={`absolute inset-0 ${background === 'bg-black' ? 'bg-gradient-to-br from-gray-800 to-gray-950' : background}`} />
     }
 
     const transMs      = `${transitionDurationMs}ms`
@@ -296,7 +304,7 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
     }
 
     return (
-      <div className="absolute inset-0 bg-black">
+      <div className={`absolute inset-0 ${background}`}>
         {renderLayer(`back-${backIndex}`,   backIndex,  !showFront)}
         {renderLayer(`front-${frontIndex}`, frontIndex,  showFront)}
         {/* Gradient overlay to make text readable */}

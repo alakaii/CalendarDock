@@ -2,7 +2,7 @@ import { ipcMain, dialog, app, BrowserWindow } from 'electron'
 import { settingsService } from '../services/settings.service'
 import { photosService } from '../services/photos.service'
 import { icloudService } from '../services/icloud.service'
-import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, ArtMode, ArtScaleMode } from '../../preload/types'
+import type { ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, ArtMode, ArtScaleMode, SlideshowArea } from '../../preload/types'
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
   ipcMain.handle('settings:get-all', async () => {
@@ -150,6 +150,13 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
     'settings:set-whitebox-opacity',
     async (_event, { opacity }: { opacity: number }) => {
       settingsService.setWhiteboxOpacity(opacity)
+    }
+  )
+
+  ipcMain.handle(
+    'settings:set-slideshow-area',
+    async (_event, { area }: { area: SlideshowArea }) => {
+      settingsService.setSlideshowArea(area)
     }
   )
 

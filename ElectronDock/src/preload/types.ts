@@ -378,6 +378,10 @@ export interface PhotoResyncResult {
 // ---- Background art ----
 export type ArtMode = 'border' | 'fullscreen'
 export type ArtScaleMode = 'fill' | 'fit' | 'stretch'
+/** Where the standby photo slideshow is shown. 'fullscreen' = whole screen
+ *  (default, today's behavior). 'calendar' = only the calendar-area rect, so the
+ *  fullscreen background art stays visible as a frame around the slideshow. */
+export type SlideshowArea = 'fullscreen' | 'calendar'
 
 export interface ListItem {
   id: string
@@ -451,6 +455,11 @@ export interface AppSettings {
    *  0 = off (default). Sits between the background art and the translucent
    *  calendar panels, tames a busy art pattern without editing the art. */
   whiteboxOpacity: number
+  /** Standby slideshow extent. 'fullscreen' (default) fills the screen; 'calendar'
+   *  confines the slideshow to the calendar-area rect and keeps the fullscreen art
+   *  as a frame. Falls back to fullscreen behavior unless artMode==='fullscreen'
+   *  with a background art file set. */
+  slideshowArea: SlideshowArea
   lists: AppList[]
   mealPlan: MealPlan
   // Calendar view
@@ -624,6 +633,7 @@ export interface CalendarDockAPI {
     setArtPixelated: (pixelated: boolean) => Promise<void>
     setArtIconFill: (fill: boolean) => Promise<void>
     setWhiteboxOpacity: (opacity: number) => Promise<void>
+    setSlideshowArea: (area: SlideshowArea) => Promise<void>
     setLaunchOnStartup: (enabled: boolean) => Promise<void>
     setMealCell: (key: string, value: string) => Promise<void>
     setCalendarSwipe: (view: 'week' | 'month', direction: CalendarSwipeDirection) => Promise<void>

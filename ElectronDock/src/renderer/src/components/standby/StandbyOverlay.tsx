@@ -8,6 +8,8 @@ import TodayEventsDrawer from './TodayEventsDrawer'
 import StandbyWater from './StandbyWater'
 import StandbyTesla from './StandbyTesla'
 import { usePhotos } from '../../hooks/usePhotos'
+import { ArtImage, useFullscreenArtUrl } from '../shell/ArtLayer'
+import { SIDEBAR_W, HEADER_H } from '../shell/layout'
 import type { StandbyCorner, StandbyElementId } from '../../../../preload/types'
 
 // Position + flex behavior keyed by anchor. Center anchors center-align their
@@ -53,7 +55,17 @@ export default function StandbyOverlay() {
   const slideshow     = useSettingsStore((s) => s.slideshow)
   const layout        = useSettingsStore((s) => s.standbyLayout)
   const exitGesture   = useSettingsStore((s) => s.standbyExitGesture)
+  const artMode       = useSettingsStore((s) => s.artMode)
+  const slideshowArea = useSettingsStore((s) => s.slideshowArea)
+  const whiteboxOpacity = useSettingsStore((s) => s.whiteboxOpacity)
   const photos        = usePhotos()
+
+  // "Slideshow in the calendar window" standby framing. Only when the user
+  // opted into it AND fullscreen art is actually configured — otherwise there
+  // is nothing to frame, so fall back to the fullscreen slideshow behavior.
+  const wantCalendarFrame = slideshowArea === 'calendar' && artMode === 'fullscreen'
+  const artUrl = useFullscreenArtUrl(wantCalendarFrame)
+  const frameActive = wantCalendarFrame && artUrl != null
 
   // Ref to the slideshow so we can call next() / prev()
   const slideshowRef  = useRef<PhotoSlideshowHandle>(null)
@@ -139,55 +151,58 @@ export default function StandbyOverlay() {
     tesla:   safeLayout.tesla.enabled   ? <StandbyTesla /> : null,
   }
 
-  return (
-    <div
-      className="fixed inset-0 z-40 bg-black overflow-hidden touch-none"
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-    >
-      {/* Background slideshow */}
-      <PhotoSlideshow
-        ref={slideshowRef}
-        photos={photos}
-        sortOrder={slideshow.sortOrder}
-        intervalMs={slideshow.durationSec * 1000}
-        transition={slideshow.transition}
-        transitionDurationMs={slideshow.transitionDurationMs}
-        cropMode={slideshow.cropMode}
-        focusSafeZonePercent={slideshow.focusSafeZonePercent}
-      />
+  // Background slideshow. In frame mode its container is transparent so any
+  // letterbox gaps reveal the art + veil behind the calendar rect (photos are
+  // opaque and cover it otherwise); fullscreen mode keeps its solid black.
+  const slideshowEl = (
+    <PhotoSlideshow
+      ref={slideshowRef}
+      photos={photos}
+      sortOrder={slideshow.sortOrder}
+      intervalMs={slideshow.durationSec * 1000}
+      transition={slideshow.transition}
+      transitionDurationMs={slideshow.transitionDurationMs}
+      cropMode={slideshow.cropMode}
+      focusSafeZonePercent={slideshow.focusSafeZonePercent}
+      background={frameActive ? 'bg-transparent' : 'bg-black'}
+    />
+  )
 
-      {/* Anchor groups — one absolute flex group per anchor (8 total: 4 corners + 4 mid-edges) */}
-      {ALL_CORNERS.map((corner) => {
-        const anchor = ANCHORS[corner]
+  // Anchor groups — one absolute flex group per anchor (8 total: 4 corners + 4
+  // mid-edges). Positioned relative to whatever stage they render inside: the
+  // whole screen (fullscreen) or the calendar rect (frame mode).
+  const anchorGroups = ALL_CORNERS.map((corner) => {
+    const anchor = ANCHORS[corner]
 
-        // Collect enabled elements for this anchor in priority order
-        const items = safeLayout.priority
-          .filter((id) => safeLayout[id].enabled && safeLayout[id].corner === corner)
-          .map((id) => ({ id, node: elementNodes[id] }))
-          .filter(({ node }) => node != null)
+    // Collect enabled elements for this anchor in priority order
+    const items = safeLayout.priority
+      .filter((id) => safeLayout[id].enabled && safeLayout[id].corner === corner)
+      .map((id) => ({ id, node: elementNodes[id] }))
+      .filter(({ node }) => node != null)
 
-        if (items.length === 0) return null
+    if (items.length === 0) return null
 
-        return (
-          <div
-            key={corner}
-            className="absolute z-10"
-            style={{
-              ...anchor.position,
-              display: 'flex',
-              flexDirection: anchor.flexDir,
-              alignItems: anchor.align,
-              gap: '1rem',
-            }}
-          >
-            {items.map(({ id, node }) => (
-              <div key={id}>{node}</div>
-            ))}
-          </div>
-        )
-      })}
+    return (
+      <div
+        key={corner}
+        className="absolute z-10"
+        style={{
+          ...anchor.position,
+          display: 'flex',
+          flexDirection: anchor.flexDir,
+          alignItems: anchor.align,
+          gap: '1rem',
+        }}
+      >
+        {items.map(({ id, node }) => (
+          <div key={id}>{node}</div>
+        ))}
+      </div>
+    )
+  })
 
+  const hints = (
+    <>
       {/* Swipe hint arrows */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-white/20 text-3xl pointer-events-none select-none">‹</div>
       <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-white/20 text-3xl pointer-events-none select-none">›</div>
@@ -196,6 +211,48 @@ export default function StandbyOverlay() {
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 text-white/30 text-sm pointer-events-none select-none">
         {exitGesture === 'single-tap' ? 'Tap to unlock' : 'Double-tap to unlock'}
       </div>
+    </>
+  )
+
+  return (
+    <div
+      className={`fixed inset-0 z-40 overflow-hidden touch-none${frameActive ? '' : ' bg-black'}`}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+    >
+      {frameActive && artUrl ? (
+        <>
+          {/* Full-bleed art frame — same source/scaling as AppShell, behind all */}
+          <ArtImage artUrl={artUrl} />
+
+          {/* Calendar-area stage: the region right of the sidebar and below the
+              header. Slideshow + corner widgets are confined here so the art
+              stays a clean frame with no nav icons / controls. */}
+          <div
+            className="absolute overflow-hidden"
+            style={{ top: HEADER_H, left: SIDEBAR_W, right: 0, bottom: 0 }}
+          >
+            {/* Softening veil between art and slideshow, matching the app's
+                calendar area. Only shows through any letterbox gaps. */}
+            {whiteboxOpacity > 0 && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0"
+                style={{ background: `rgba(255,255,255,${whiteboxOpacity / 100})` }}
+              />
+            )}
+            {slideshowEl}
+            {anchorGroups}
+            {hints}
+          </div>
+        </>
+      ) : (
+        <>
+          {slideshowEl}
+          {anchorGroups}
+          {hints}
+        </>
+      )}
     </div>
   )
 }

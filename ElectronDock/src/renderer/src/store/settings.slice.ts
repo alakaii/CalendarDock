@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, ArtMode, ArtScaleMode } from '../../../preload/types'
+import type { AppSettings, ThemeMode, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, ArtMode, ArtScaleMode, SlideshowArea } from '../../../preload/types'
 
 interface SettingsState extends AppSettings {
   loadFromMain: () => Promise<void>
@@ -17,6 +17,7 @@ interface SettingsState extends AppSettings {
   setArtPixelated: (pixelated: boolean) => void
   setArtIconFill: (fill: boolean) => void
   setWhiteboxOpacity: (opacity: number) => void
+  setSlideshowArea: (area: SlideshowArea) => void
   setTimezone: (tz: string) => void
   setAdditionalTimezones: (zones: string[]) => void
   setMealCell: (key: string, value: string) => void
@@ -75,6 +76,7 @@ const defaults: AppSettings = {
   artPixelated: true,
   artIconFill:  true,
   whiteboxOpacity: 0,
+  slideshowArea: 'fullscreen',
   lists: [],
   mealPlan: {},
   calendarSwipeWeek:  'horizontal',
@@ -282,6 +284,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     const clamped = Math.max(0, Math.min(100, Math.round(opacity)))
     window.api.settings.setWhiteboxOpacity(clamped)
     set({ whiteboxOpacity: clamped })
+  },
+
+  setSlideshowArea: (area) => {
+    window.api.settings.setSlideshowArea(area)
+    set({ slideshowArea: area })
   },
 
   setTimezone: (tz) => {

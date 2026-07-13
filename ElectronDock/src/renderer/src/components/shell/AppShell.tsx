@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
 import { useUIStore } from '../../store/ui.slice'
 import { useSettingsStore } from '../../store/settings.slice'
 import Sidebar from './Sidebar'
 import AppHeader from './AppHeader'
+import ArtLayer from './ArtLayer'
 import CalendarView from '../calendar/CalendarView'
 import ChoresPage from '../pages/ChoresPage'
 import MealsPage from '../pages/MealsPage'
@@ -19,8 +19,6 @@ export default function AppShell() {
   const whiteboxPreview = useUIStore((s) => s.whiteboxPreview)
   const artMode         = useSettingsStore((s) => s.artMode)
   const uiOpacity       = useSettingsStore((s) => s.uiOpacity)
-  const artScaleMode    = useSettingsStore((s) => s.artScaleMode)
-  const artPixelated    = useSettingsStore((s) => s.artPixelated)
   const whiteboxOpacity = useSettingsStore((s) => s.whiteboxOpacity)
 
   const fullscreen = artMode === 'fullscreen'
@@ -31,18 +29,6 @@ export default function AppShell() {
   // Mounts once when the drag engages and unmounts when it disengages, so
   // FullCalendar isn't churned per slider tick.
   const previewActive = fullscreen && whiteboxPreview && activePage === 'settings'
-
-  // Serving URL for the fullscreen art file (from userData/backgroundArt/).
-  // Re-fetched when fullscreen mode turns on or after the user uploads new art.
-  const [artUrl, setArtUrl] = useState<string | null>(null)
-  useEffect(() => {
-    if (!fullscreen) { setArtUrl(null); return }
-    let cancelled = false
-    const load = () => window.api.art.getFullscreen().then((u) => { if (!cancelled) setArtUrl(u) })
-    load()
-    window.addEventListener('fullscreenArtChanged', load)
-    return () => { cancelled = true; window.removeEventListener('fullscreenArtChanged', load) }
-  }, [fullscreen])
 
   const rootStyle: React.CSSProperties = {
     background: 'var(--bg-base)',
@@ -61,18 +47,7 @@ export default function AppShell() {
       style={rootStyle}
     >
       {/* Full-bleed pixel-art layer — sits above --bg-base, below all UI */}
-      {fullscreen && artUrl && (
-        <img
-          aria-hidden="true"
-          src={artUrl}
-          alt=""
-          className="pointer-events-none absolute inset-0 w-full h-full -z-10"
-          style={{
-            objectFit: artScaleMode === 'fit' ? 'contain' : artScaleMode === 'stretch' ? 'fill' : 'cover',
-            imageRendering: artPixelated ? 'pixelated' : 'auto',
-          }}
-        />
-      )}
+      <ArtLayer enabled={fullscreen} className="-z-10" />
 
       {/* Full-width header — spans sidebar + content */}
       <AppHeader />

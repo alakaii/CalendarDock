@@ -1,7 +1,7 @@
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
 import { safeStorage } from 'electron'
-import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, TeslaVehicleConfig, ArtMode, ArtScaleMode } from '../../preload/types'
+import type { AppSettings, AppList, ListItem, MealPlan, SlideshowSettings, StandbyLayout, StandbyExitGesture, ChoresMode, ChoresList, ListsMode, ListsFilter, WyzeCamera, CalendarSwipeDirection, SidebarSlot, TeslaVehicleConfig, ArtMode, ArtScaleMode, SlideshowArea } from '../../preload/types'
 
 type StoredSettings = AppSettings & {
   // Accounts with encrypted refresh tokens (base64 encoded, DPAPI encrypted)
@@ -61,6 +61,7 @@ const defaults: StoredSettings = {
   artPixelated: true,
   artIconFill:  true,
   whiteboxOpacity: 0,
+  slideshowArea: 'fullscreen',
   lists: [
     { id: 'chores', name: 'Chores', items: [] }
   ],
@@ -291,6 +292,10 @@ export const settingsService = {
 
   setWhiteboxOpacity(opacity: number): void {
     store.set('whiteboxOpacity', Math.max(0, Math.min(100, Math.round(opacity))))
+  },
+
+  setSlideshowArea(area: SlideshowArea): void {
+    store.set('slideshowArea', area)
   },
 
   setLaunchOnStartup(enabled: boolean): void {

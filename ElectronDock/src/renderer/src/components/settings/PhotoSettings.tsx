@@ -7,6 +7,8 @@ export default function PhotoSettings() {
   const photoFolderPath      = useSettingsStore((s) => s.photoFolderPath)
   const slideshow            = useSettingsStore((s) => s.slideshow)
   const setSlideshowSettings = useSettingsStore((s) => s.setSlideshowSettings)
+  const slideshowArea        = useSettingsStore((s) => s.slideshowArea)
+  const setSlideshowArea     = useSettingsStore((s) => s.setSlideshowArea)
   const loadSettings         = useSettingsStore((s) => s.loadFromMain)
 
   // Dropbox state
@@ -199,6 +201,11 @@ export default function PhotoSettings() {
   const cropModes: { value: 'fit' | 'focus'; label: string; description: string }[] = [
     { value: 'fit',   label: 'Scale to fit', description: 'Whole photo, blurred backdrop' },
     { value: 'focus', label: 'Focus',        description: 'Fill the screen, anchor on subject' },
+  ]
+
+  const slideshowAreas: { value: 'fullscreen' | 'calendar'; label: string; description: string }[] = [
+    { value: 'fullscreen', label: 'Fullscreen',       description: 'Photos fill the whole screen' },
+    { value: 'calendar',   label: 'Calendar window',  description: 'Photos inside the art frame' },
   ]
 
   const labelStyle = { color: 'var(--text-primary)' }
@@ -761,6 +768,35 @@ export default function PhotoSettings() {
             </p>
           </div>
         )}
+      </section>
+
+      {/* ── Slideshow area ─────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div>
+          <label className="text-sm font-medium" style={labelStyle}>Slideshow area</label>
+          <p className="text-xs mt-0.5" style={subStyle}>
+            In <strong>Calendar window</strong> mode the fullscreen background art stays visible as a
+            frame and the slideshow plays only inside the calendar area. Needs fullscreen art set —
+            otherwise it plays fullscreen.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {slideshowAreas.map((a) => (
+            <button
+              key={a.value}
+              onClick={() => setSlideshowArea(a.value)}
+              className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl text-left border transition-colors"
+              style={{
+                background:  slideshowArea === a.value ? 'rgba(59,130,246,0.12)' : 'var(--bg-base)',
+                borderColor: slideshowArea === a.value ? '#3b82f6' : 'var(--border)',
+                color:       slideshowArea === a.value ? '#3b82f6' : 'var(--text-primary)',
+              }}
+            >
+              <span className="text-xs font-semibold">{a.label}</span>
+              <span className="text-[10px]" style={subStyle}>{a.description}</span>
+            </button>
+          ))}
+        </div>
       </section>
     </div>
   )
