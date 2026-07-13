@@ -1,24 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
 import { useUIStore } from '../../store/ui.slice'
-import { FRAME_W, FRAME_H, FRAME_PX } from '../../hooks/useMotionDetector'
+import { FRAME_W, FRAME_H, FRAME_PX, seedBackground, scoreAndUpdate } from '../../hooks/useMotionDetector'
 
 type WizardPhase =
   | 'idle'
-  | 'countdown-background'
-  | 'capturing-background'
-  | 'countdown-trigger'
-  | 'reading-trigger'
+  | 'countdown'
+  | 'sampling'
   | 'complete'
   | 'testing'
 
-const DEFAULT_PIXEL_NOISE = 20
+// Calibration samples the empty room for this long at ~4 fps and records the
+// worst-case coverage score produced by pure sensor/lighting jitter.
+const SAMPLE_MS       = 8_000
+const SAMPLE_INTERVAL = 250
+
+// Threshold is set a fixed margin above the measured empty-room noise floor:
+// high enough that ordinary jitter never crosses it, low enough that a person
+// entering frame does. Also floored so a pathologically quiet camera can't set
+// a hair-trigger threshold.
+const NOISE_MARGIN  = 0.02
+const MIN_THRESHOLD = 0.02
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000
 
 export default function CameraWakeSettings() {
   const enabled                    = useSettingsStore((s) => s.cameraWakeEnabled)
   const deepSleepStart             = useSettingsStore((s) => s.deepSleepStart)
   const deepSleepEnd               = useSettingsStore((s) => s.deepSleepEnd)
   const threshold                  = useSettingsStore((s) => s.cameraWakeThreshold)
+  const pixelNoise                 = useSettingsStore((s) => s.cameraWakePixelNoise)
   const background                 = useSettingsStore((s) => s.cameraWakeBackground)
   const passiveBacklightOffMinutes = useSettingsStore((s) => s.passiveBacklightOffMinutes)
   const motionSustainSeconds       = useSettingsStore((s) => s.motionSustainSeconds)
@@ -34,21 +45,24 @@ export default function CameraWakeSettings() {
   const isCalibrated = background !== null
 
   // ── Wizard state ──────────────────────────────────────────────────────────────
-  const [phase, setPhase]               = useState<WizardPhase>('idle')
-  const [countdown, setCountdown]       = useState(3)
-  const [capProgress, setCapProgress]   = useState(0)
-  const [liveScore, setLiveScore]       = useState(0)
-  const [peakScore, setPeakScore]       = useState(0)
-  const [sustainedSec, setSustainedSec] = useState(0)
-  const [cameraError, setCameraError]   = useState<string | null>(null)
-  const motionStartTsRef                = useRef<number | null>(null)
+  const [phase, setPhase]             = useState<WizardPhase>('idle')
+  const [countdown, setCountdown]     = useState(3)
+  const [capProgress, setCapProgress] = useState(0)
+  const [liveScore, setLiveScore]     = useState(0)
+  const [peakScore, setPeakScore]     = useState(0)
+  const [triggerCount, setTriggerCount] = useState(0)
+  const [noiseFloor, setNoiseFloor]   = useState(0)
+  const [cameraError, setCameraError] = useState<string | null>(null)
 
   // Camera refs
   const videoRef    = useRef<HTMLVideoElement | null>(null)
   const canvasRef   = useRef<HTMLCanvasElement | null>(null)
   const streamRef   = useRef<MediaStream | null>(null)
-  const tempBgRef   = useRef<number[] | null>(null)
   const activeRef   = useRef(false)
+  // Adaptive-background buffers for the wizard's own detector runs. Kept in
+  // refs so they survive re-renders inside the sampling / testing loops.
+  const bgRef       = useRef<Float32Array | null>(null)
+  const prevOverRef = useRef(false)
 
   // ── Camera helpers ─────────────────────────────────────────────────────────────
 
@@ -116,17 +130,6 @@ export default function CameraWakeSettings() {
     return gray
   }, [ensureCanvas])
 
-  const computeScore = useCallback((): number => {
-    const gray = grabGray()
-    const bg   = tempBgRef.current
-    if (!gray || !bg) return 0
-    let changed = 0
-    for (let i = 0; i < FRAME_PX; i++) {
-      if (Math.abs(gray[i] - bg[i]) > DEFAULT_PIXEL_NOISE) changed++
-    }
-    return changed / FRAME_PX
-  }, [grabGray])
-
   // ── Cleanup on unmount ─────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -136,129 +139,112 @@ export default function CameraWakeSettings() {
     }
   }, [stopCamera])
 
-  // ── Phase: countdown-background ─────────────────────────────────────────────
+  // ── Phase: countdown ────────────────────────────────────────────────────────
+  // Give the user a few seconds to leave the frame before we measure the
+  // empty-room noise floor.
 
   useEffect(() => {
-    if (phase !== 'countdown-background') return
+    if (phase !== 'countdown') return
     let count = 3
     setCountdown(3)
     const iv = setInterval(() => {
       count--
-      if (count <= 0) { clearInterval(iv); setPhase('capturing-background') }
+      if (count <= 0) { clearInterval(iv); setPhase('sampling') }
       else setCountdown(count)
     }, 1000)
     return () => clearInterval(iv)
   }, [phase])
 
-  // ── Phase: capturing-background ─────────────────────────────────────────────
+  // ── Phase: sampling ─────────────────────────────────────────────────────────
+  // Run the *adaptive* detector on the empty room, track the peak coverage
+  // score (the noise floor), then set the threshold a margin above it and
+  // store the settled background as the EMA seed for the live detector.
 
   useEffect(() => {
-    if (phase !== 'capturing-background') return
+    if (phase !== 'sampling') return
     activeRef.current = true
     setCapProgress(0)
-    const FRAMES = 30
-    const sums   = new Float32Array(FRAME_PX)
-    let captured = 0
-    const captureNext = () => {
-      if (!activeRef.current) return
+    bgRef.current = null
+    let maxScore = 0
+    let elapsed  = 0
+    const iv = setInterval(() => {
+      if (!activeRef.current) { clearInterval(iv); return }
       const gray = grabGray()
       if (gray) {
-        for (let i = 0; i < FRAME_PX; i++) sums[i] += gray[i]
-        captured++
-        setCapProgress(Math.round((captured / FRAMES) * 100))
+        if (!bgRef.current) bgRef.current = seedBackground(gray)
+        const s = scoreAndUpdate(gray, bgRef.current, pixelNoise)
+        if (s > maxScore) maxScore = s
       }
-      if (captured >= FRAMES) {
-        const bg = Array.from(sums.map((s) => Math.round(s / FRAMES)))
-        tempBgRef.current = bg
-        setPhase('countdown-trigger')
-      } else {
-        setTimeout(captureNext, 100)
+      elapsed += SAMPLE_INTERVAL
+      setCapProgress(Math.min(100, Math.round((elapsed / SAMPLE_MS) * 100)))
+      if (elapsed >= SAMPLE_MS) {
+        clearInterval(iv)
+        const bg = bgRef.current
+        if (!bg) {
+          setCameraError('Could not read frames from the camera during calibration. Try again.')
+          stopCamera()
+          setPhase('idle')
+          return
+        }
+        const newThreshold = Math.max(MIN_THRESHOLD, round3(maxScore + NOISE_MARGIN))
+        const seed = Array.from(bg, (v) => Math.round(v))
+        setNoiseFloor(maxScore)
+        setCameraWakeCalibration(seed, newThreshold)
+        stopCamera()
+        setPhase('complete')
       }
-    }
-    setTimeout(captureNext, 100)
-  }, [phase, grabGray])
-
-  // ── Phase: countdown-trigger ────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (phase !== 'countdown-trigger') return
-    let count = 3
-    setCountdown(3)
-    const iv = setInterval(() => {
-      count--
-      if (count <= 0) { clearInterval(iv); setPhase('reading-trigger') }
-      else setCountdown(count)
-    }, 1000)
+    }, SAMPLE_INTERVAL)
     return () => clearInterval(iv)
-  }, [phase])
-
-  // ── Phase: reading-trigger ───────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (phase !== 'reading-trigger') return
-    activeRef.current = true
-    const iv = setInterval(() => {
-      const s = computeScore()
-      setLiveScore(s)
-    }, 250)
-    return () => clearInterval(iv)
-  }, [phase, computeScore])
+  }, [phase, grabGray, pixelNoise, setCameraWakeCalibration, stopCamera])
 
   // ── Phase: testing ──────────────────────────────────────────────────────────
+  // Live adaptive-background scoring so the user can wave (score spikes) and
+  // stand still (score settles back to ~0). "Triggers" counts rising-edge
+  // threshold crossings — with a static scene it must stay at 0.
 
   useEffect(() => {
     if (phase !== 'testing') return
     activeRef.current = true
-    motionStartTsRef.current = null
+    bgRef.current = null
+    prevOverRef.current = false
     setPeakScore(0)
-    setSustainedSec(0)
+    setTriggerCount(0)
+    setLiveScore(0)
     const iv = setInterval(() => {
-      const s = computeScore()
+      const gray = grabGray()
+      if (!gray) return
+      if (!bgRef.current) bgRef.current = seedBackground(gray, background)
+      const s = scoreAndUpdate(gray, bgRef.current, pixelNoise)
       setLiveScore(s)
       setPeakScore((p) => (s > p ? s : p))
-      if (s > threshold) {
-        if (motionStartTsRef.current === null) motionStartTsRef.current = Date.now()
-        setSustainedSec((Date.now() - motionStartTsRef.current) / 1000)
-      } else if (motionStartTsRef.current !== null) {
-        motionStartTsRef.current = null
-        setSustainedSec(0)
-      }
-    }, 200)
+      const over = s > threshold
+      if (over && !prevOverRef.current) setTriggerCount((c) => c + 1)
+      prevOverRef.current = over
+    }, SAMPLE_INTERVAL)
     return () => clearInterval(iv)
-  }, [phase, computeScore, threshold])
+  }, [phase, grabGray, pixelNoise, threshold, background])
 
   // ── Wizard actions ─────────────────────────────────────────────────────────────
 
   const startWizard = async () => {
     const ok = await startCamera()
     if (!ok) return
-    tempBgRef.current = null
+    bgRef.current = null
     activeRef.current = true
-    setPhase('countdown-background')
+    setPhase('countdown')
   }
 
   const cancelWizard = () => {
     activeRef.current = false
     stopCamera()
-    tempBgRef.current = null
+    bgRef.current = null
     setPhase('idle')
   }
 
-  const confirmDistance = () => {
-    const bg  = tempBgRef.current
-    const raw = liveScore
-    if (!bg || raw <= 0) return
-    const newThreshold = Math.max(0.02, raw * 0.8)
-    setCameraWakeCalibration(bg, newThreshold)
-    stopCamera()
-    setPhase('complete')
-  }
-
   const startTest = async () => {
-    if (!background) return
     const ok = await startCamera()
     if (!ok) return
-    tempBgRef.current = background
+    bgRef.current = null
     activeRef.current = true
     setPhase('testing')
   }
@@ -266,8 +252,8 @@ export default function CameraWakeSettings() {
   const stopTest = () => {
     activeRef.current = false
     stopCamera()
-    tempBgRef.current = null
-    motionStartTsRef.current = null
+    bgRef.current = null
+    prevOverRef.current = false
     setPhase('idle')
   }
 
@@ -321,7 +307,7 @@ export default function CameraWakeSettings() {
     )
   }
 
-  const showCamera = ['countdown-background', 'capturing-background', 'countdown-trigger', 'reading-trigger', 'testing'].includes(phase)
+  const showCamera = ['countdown', 'sampling', 'testing'].includes(phase)
 
   // Attach the stream to the <video> element after it mounts. We can't do this
   // inside startCamera() because at that moment phase is still 'idle' and the
@@ -545,7 +531,7 @@ export default function CameraWakeSettings() {
         </div>
       )}
 
-      {/* ── Calibration wizard ───────────────────────────────────────────────── */}
+      {/* ── Calibration ──────────────────────────────────────────────────────── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <p style={labelStyle}>Calibration</p>
@@ -568,8 +554,8 @@ export default function CameraWakeSettings() {
           <div className="space-y-3">
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               {isCalibrated
-                ? 'Calibration complete. Test detection at different distances or re-calibrate.'
-                : 'Two quick recordings: empty room, then stand at your desired trigger distance.'}
+                ? 'Calibration measures the empty-room noise floor and sets the wake threshold just above it. Re-run it if the camera moves or the room changes, or test detection below.'
+                : 'One quick recording of the empty room measures background noise and sets the wake threshold just above it. Detection adapts to lighting changes on its own — no need to re-calibrate for sun or lamps.'}
             </p>
             {cameraError && (
               <div
@@ -585,17 +571,15 @@ export default function CameraWakeSettings() {
                 className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
                 style={{ background: '#3b82f6', color: '#fff' }}
               >
-                {isCalibrated ? 'Re-calibrate' : 'Start Calibration'}
+                {isCalibrated ? 'Re-calibrate' : 'Calibrate empty room'}
               </button>
-              {isCalibrated && (
-                <button
-                  onClick={startTest}
-                  className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
-                  style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}
-                >
-                  Test detection
-                </button>
-              )}
+              <button
+                onClick={startTest}
+                className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
+                style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}
+              >
+                Test detection
+              </button>
             </div>
           </div>
         )}
@@ -612,20 +596,21 @@ export default function CameraWakeSettings() {
                 <p className="text-sm font-semibold" style={{ color: '#3b82f6' }}>Detection test</p>
               </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Move around at different distances to see what registers. The blue border around the
-                screen marks test mode — wake actions are not triggered.
+                Wave and the score spikes; stand still and it settles back toward zero as the scene
+                blends into the adaptive background. With an empty, static room "Triggers" stays at 0.
+                The blue border marks test mode — wake actions are not triggered.
               </p>
 
               <ScoreBar score={liveScore} thresh={threshold} label="Live motion score" />
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Sustained motion</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Triggers</p>
                   <p
                     className="text-2xl font-bold tabular-nums"
-                    style={{ color: motionStartTsRef.current !== null ? '#22c55e' : 'var(--text-primary)' }}
+                    style={{ color: triggerCount > 0 ? '#22c55e' : 'var(--text-primary)' }}
                   >
-                    {sustainedSec.toFixed(1)}s
+                    {triggerCount}
                   </p>
                 </div>
                 <div className="rounded-lg p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
@@ -647,23 +632,23 @@ export default function CameraWakeSettings() {
           </div>
         )}
 
-        {/* COUNTDOWN BACKGROUND */}
-        {phase === 'countdown-background' && (
+        {/* COUNTDOWN */}
+        {phase === 'countdown' && (
           <div className="space-y-4">
             <div className="rounded-xl p-4 text-center space-y-2" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Step 1 of 2 — Empty Room</p>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Step out of frame! Recording background in…</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Empty Room</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Step out of frame! Measuring the empty room in…</p>
               <p className="text-6xl font-bold tabular-nums" style={{ color: '#3b82f6' }}>{countdown}</p>
             </div>
             <button onClick={cancelWizard} className="text-sm" style={{ color: 'var(--text-secondary)' }}>Cancel</button>
           </div>
         )}
 
-        {/* CAPTURING BACKGROUND */}
-        {phase === 'capturing-background' && (
+        {/* SAMPLING */}
+        {phase === 'sampling' && (
           <div className="space-y-4">
             <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Step 1 of 2 — Recording background…</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Measuring empty-room noise…</p>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
                   <span>Stay out of frame</span>
@@ -677,48 +662,6 @@ export default function CameraWakeSettings() {
           </div>
         )}
 
-        {/* COUNTDOWN TRIGGER */}
-        {phase === 'countdown-trigger' && (
-          <div className="space-y-4">
-            <div className="rounded-xl p-4 text-center space-y-2" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Step 2 of 2 — Trigger Distance</p>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Walk to where you want the screen to wake up. Starting in…</p>
-              <p className="text-6xl font-bold tabular-nums" style={{ color: '#3b82f6' }}>{countdown}</p>
-            </div>
-            <button onClick={cancelWizard} className="text-sm" style={{ color: 'var(--text-secondary)' }}>Cancel</button>
-          </div>
-        )}
-
-        {/* READING TRIGGER */}
-        {phase === 'reading-trigger' && (
-          <div className="space-y-4">
-            <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Step 2 of 2 — Stand at your trigger distance</p>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Stay still at the spot where you want the screen to wake. Tap "Use This" when the bar is steady.
-              </p>
-              <ScoreBar score={liveScore} thresh={0} label="Motion score" />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={confirmDistance}
-                disabled={liveScore < 0.01}
-                className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px] transition-opacity disabled:opacity-30"
-                style={{ background: '#22c55e', color: '#fff' }}
-              >
-                Use This Distance
-              </button>
-              <button
-                onClick={cancelWizard}
-                className="px-5 py-2.5 rounded-xl font-semibold text-sm min-h-[44px]"
-                style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* COMPLETE */}
         {phase === 'complete' && (
           <div
@@ -727,7 +670,8 @@ export default function CameraWakeSettings() {
           >
             <p className="text-sm font-semibold" style={{ color: '#22c55e' }}>✓ Calibration complete</p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Trigger threshold set to {(threshold * 100).toFixed(1)}%. Use the slider below to fine-tune.
+              Empty-room noise floor measured at {(noiseFloor * 100).toFixed(1)}%. Wake threshold set to {(threshold * 100).toFixed(1)}%.
+              Use the slider below to fine-tune.
             </p>
             <button onClick={() => setPhase('idle')} className="text-xs font-medium mt-1" style={{ color: '#3b82f6' }}>
               Done →

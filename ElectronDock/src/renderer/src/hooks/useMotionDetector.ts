@@ -4,14 +4,56 @@ export const FRAME_W  = 160
 export const FRAME_H  = 120
 export const FRAME_PX = FRAME_W * FRAME_H   // 19,200
 
+// Exponential-moving-average smoothing factor for the adaptive background.
+// Frames are processed at ~4 fps, so the background's time constant is
+// τ = 1/(BG_ALPHA·fps). At 0.008 that's ≈ 31 s: a *lasting* scene change
+// (sun angle, auto-exposure, lighting drift) is folded into the reference
+// over roughly 30–60 s and stops registering as motion, while a person
+// moving through frame still spikes the score long before they blend in.
+// Anything much larger (e.g. 0.02 ≈ 12 s) absorbs real motion too quickly;
+// much smaller drifts back toward the old static-reference failure mode.
+export const BG_ALPHA = 0.008
+
 export interface MotionDetectorOptions {
   enabled:    boolean
   fps:        number
-  background: number[] | null
+  background: number[] | null   // optional EMA seed (empty-room snapshot)
   threshold:  number       // 0.0–1.0 coverage fraction
   pixelNoise: number       // per-pixel diff floor (0–255)
   onMotion:   () => void
   onFrame?:   (score: number, luminance: number) => void
+}
+
+/**
+ * Seed a fresh adaptive-background buffer. Prefers a stored empty-room
+ * snapshot; otherwise starts from the first observed frame (so the very first
+ * comparison is against itself and scores ~0). Float32 is required — integer
+ * rounding at this low alpha would freeze the running average.
+ */
+export function seedBackground(gray: Uint8Array, stored?: ArrayLike<number> | null): Float32Array {
+  const bg = new Float32Array(gray.length)
+  if (stored && stored.length === gray.length) {
+    for (let i = 0; i < gray.length; i++) bg[i] = stored[i]
+  } else {
+    for (let i = 0; i < gray.length; i++) bg[i] = gray[i]
+  }
+  return bg
+}
+
+/**
+ * Diff a grayscale frame against the adaptive background, then fold the frame
+ * into that background (EMA update, in place). Returns the coverage score —
+ * the fraction of pixels that differ by more than `pixelNoise`. Shared by the
+ * live detector and the calibration/test UI so both use identical math.
+ */
+export function scoreAndUpdate(gray: Uint8Array, bg: Float32Array, pixelNoise: number): number {
+  let changed = 0
+  for (let i = 0; i < bg.length; i++) {
+    const diff = gray[i] - bg[i]
+    if (Math.abs(diff) > pixelNoise) changed++
+    bg[i] += BG_ALPHA * diff
+  }
+  return changed / bg.length
 }
 
 export function useMotionDetector(opts: MotionDetectorOptions): void {
@@ -20,7 +62,7 @@ export function useMotionDetector(opts: MotionDetectorOptions): void {
 
   const videoRef    = useRef<HTMLVideoElement | null>(null)
   const canvasRef   = useRef<HTMLCanvasElement | null>(null)
-  const prevGrayRef = useRef<Uint8Array | null>(null)
+  const bgRef       = useRef<Float32Array | null>(null)
   const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
   const streamRef   = useRef<MediaStream | null>(null)
   const cooldownRef = useRef(false)
@@ -48,18 +90,13 @@ export function useMotionDetector(opts: MotionDetectorOptions): void {
     }
     const luminance = lumSum / FRAME_PX / 255
 
-    // Reference: stored background model, else previous frame
-    const ref: number[] | Uint8Array | null = o.background ?? prevGrayRef.current ?? null
-    prevGrayRef.current = gray
-
-    if (!ref) return
-
-    // Count pixels that changed more than the noise floor
-    let changed = 0
-    for (let i = 0; i < FRAME_PX; i++) {
-      if (Math.abs(gray[i] - ref[i]) > o.pixelNoise) changed++
-    }
-    const score = changed / FRAME_PX
+    // Adaptive background: seed on the first frame (from the stored empty-room
+    // snapshot if present, else this frame), then diff-and-update every frame.
+    // Because the reference tracks the scene, only *changes relative to the
+    // recent past* score — lighting drift since calibration no longer counts
+    // as permanent motion the way a frozen static reference did.
+    if (!bgRef.current) bgRef.current = seedBackground(gray, o.background)
+    const score = scoreAndUpdate(gray, bgRef.current, o.pixelNoise)
 
     o.onFrame?.(score, luminance)
 
@@ -118,7 +155,7 @@ export function useMotionDetector(opts: MotionDetectorOptions): void {
       streamRef.current   = null
       videoRef.current    = null
       canvasRef.current   = null
-      prevGrayRef.current = null
+      bgRef.current       = null
     }
   }, [opts.enabled, scheduleNext])
 }
