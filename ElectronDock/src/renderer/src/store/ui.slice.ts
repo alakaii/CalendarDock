@@ -43,6 +43,15 @@ interface UIState {
   /** Reactive calendar display state — updated by CalendarView, read by AppHeader */
   calendarDate: Date
   calendarView: CalView
+  /**
+   * True while the user is dragging the whitebox veil slider in Settings (plus a
+   * short linger after release). Read by AppShell: on the settings page it mounts
+   * a live CalendarView behind the settings UI and cuts out the right third so the
+   * real calendar (with art + veil) shows through live. Set/cleared by
+   * GeneralSettings' slider pointer handlers; a linger timer + pointer cancel/leave
+   * guarantee it never gets stuck on.
+   */
+  whiteboxPreview: boolean
   /** cause is an optional low-noise label for the journal (e.g. 'inactivity-timer'). */
   setMode: (mode: AppMode, cause?: string) => void
   setPage: (page: AppPage) => void
@@ -52,6 +61,7 @@ interface UIState {
   toggleChipHidden: (calendarId: string) => void
   setCalendarDate: (date: Date) => void
   setCalendarView: (view: CalView) => void
+  setWhiteboxPreview: (active: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -64,6 +74,7 @@ export const useUIStore = create<UIState>((set) => ({
   backlightOffAt: null,
   calendarDate: new Date(),
   calendarView: 'timeGridWeek',
+  whiteboxPreview: false,
   // Mode change auto-clears the manual deep-sleep override on wake to 'app'.
   // Anything else (going back into standby on its own from the inactivity
   // timer) leaves the flag alone — but it should already be false there,
@@ -106,4 +117,5 @@ export const useUIStore = create<UIState>((set) => ({
     }),
   setCalendarDate: (calendarDate) => set({ calendarDate }),
   setCalendarView: (calendarView) => set({ calendarView }),
+  setWhiteboxPreview: (whiteboxPreview) => set({ whiteboxPreview }),
 }))

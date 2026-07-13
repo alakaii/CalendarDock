@@ -147,6 +147,13 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
   )
 
   ipcMain.handle(
+    'settings:set-whitebox-opacity',
+    async (_event, { opacity }: { opacity: number }) => {
+      settingsService.setWhiteboxOpacity(opacity)
+    }
+  )
+
+  ipcMain.handle(
     'settings:set-launch-on-startup',
     async (_event, { enabled }: { enabled: boolean }) => {
       settingsService.setLaunchOnStartup(enabled)

@@ -16,6 +16,7 @@ interface SettingsState extends AppSettings {
   setArtScaleMode: (mode: ArtScaleMode) => void
   setArtPixelated: (pixelated: boolean) => void
   setArtIconFill: (fill: boolean) => void
+  setWhiteboxOpacity: (opacity: number) => void
   setTimezone: (tz: string) => void
   setAdditionalTimezones: (zones: string[]) => void
   setMealCell: (key: string, value: string) => void
@@ -73,6 +74,7 @@ const defaults: AppSettings = {
   artScaleMode: 'fill',
   artPixelated: true,
   artIconFill:  true,
+  whiteboxOpacity: 0,
   lists: [],
   mealPlan: {},
   calendarSwipeWeek:  'horizontal',
@@ -274,6 +276,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setArtIconFill: (fill) => {
     window.api.settings.setArtIconFill(fill)
     set({ artIconFill: fill })
+  },
+
+  setWhiteboxOpacity: (opacity) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(opacity)))
+    window.api.settings.setWhiteboxOpacity(clamped)
+    set({ whiteboxOpacity: clamped })
   },
 
   setTimezone: (tz) => {

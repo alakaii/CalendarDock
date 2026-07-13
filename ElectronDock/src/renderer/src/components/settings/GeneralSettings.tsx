@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../../store/settings.slice'
+import { useUIStore } from '../../store/ui.slice'
 import type { ThemeMode, ArtMode, ArtScaleMode } from '../../../../preload/types'
 import { SIDEBAR_IMAGE_KEY } from '../shell/Sidebar'
 import { HEADER_IMAGE_KEY } from '../shell/AppHeader'
@@ -21,6 +22,30 @@ export default function GeneralSettings() {
   const setArtScaleMode = useSettingsStore((s) => s.setArtScaleMode)
   const setArtPixelated = useSettingsStore((s) => s.setArtPixelated)
   const setArtIconFill  = useSettingsStore((s) => s.setArtIconFill)
+  const whiteboxOpacity    = useSettingsStore((s) => s.whiteboxOpacity)
+  const setWhiteboxOpacity = useSettingsStore((s) => s.setWhiteboxOpacity)
+
+  // Live preview of the whitebox veil (see AppShell). Engage while the slider is
+  // held, and linger ~2s after release so the user can eyeball the result. A
+  // timer ref + pointer cancel/leave handling guarantees it never sticks on.
+  const setWhiteboxPreview = useUIStore((s) => s.setWhiteboxPreview)
+  const previewLingerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const engagePreview = () => {
+    if (previewLingerRef.current) { clearTimeout(previewLingerRef.current); previewLingerRef.current = null }
+    setWhiteboxPreview(true)
+  }
+  const disengagePreview = () => {
+    if (previewLingerRef.current) clearTimeout(previewLingerRef.current)
+    previewLingerRef.current = setTimeout(() => {
+      setWhiteboxPreview(false)
+      previewLingerRef.current = null
+    }, 2000)
+  }
+  // Safety: clear the timer and force-disengage if this panel unmounts mid-drag.
+  useEffect(() => () => {
+    if (previewLingerRef.current) clearTimeout(previewLingerRef.current)
+    setWhiteboxPreview(false)
+  }, [setWhiteboxPreview])
 
   const artFileInputRef = useRef<HTMLInputElement>(null)
   const [artUrl, setArtUrl] = useState<string | null>(null)
@@ -417,6 +442,36 @@ export default function GeneralSettings() {
               />
               <div className="flex justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
                 <span>20%</span><span>100%</span>
+              </div>
+            </div>
+
+            {/* Whitebox veil — a white softening layer over the calendar area only */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  Calendar Veil
+                </span>
+                <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                  {whiteboxOpacity}%
+                </span>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                A white softening layer over the calendar area — tames a busy art pattern without editing the art. Drag to preview the live calendar on the right.
+              </p>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={whiteboxOpacity}
+                onChange={(e) => setWhiteboxOpacity(Number(e.target.value))}
+                onPointerDown={engagePreview}
+                onPointerUp={disengagePreview}
+                onPointerCancel={disengagePreview}
+                onPointerLeave={disengagePreview}
+                className="w-full accent-blue-500 h-2"
+              />
+              <div className="flex justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
+                <span>0%</span><span>100%</span>
               </div>
             </div>
 

@@ -447,6 +447,10 @@ export interface AppSettings {
   artPixelated: boolean
   /** Rounded backdrop chips behind sidebar nav items + header text (fullscreen art only). */
   artIconFill: boolean
+  /** White softening veil over the main page area in fullscreen art mode, 0–100.
+   *  0 = off (default). Sits between the background art and the translucent
+   *  calendar panels, tames a busy art pattern without editing the art. */
+  whiteboxOpacity: number
   lists: AppList[]
   mealPlan: MealPlan
   // Calendar view
@@ -608,6 +612,7 @@ export interface CalendarDockAPI {
     setArtScaleMode: (mode: ArtScaleMode) => Promise<void>
     setArtPixelated: (pixelated: boolean) => Promise<void>
     setArtIconFill: (fill: boolean) => Promise<void>
+    setWhiteboxOpacity: (opacity: number) => Promise<void>
     setLaunchOnStartup: (enabled: boolean) => Promise<void>
     setMealCell: (key: string, value: string) => Promise<void>
     setCalendarSwipe: (view: 'week' | 'month', direction: CalendarSwipeDirection) => Promise<void>

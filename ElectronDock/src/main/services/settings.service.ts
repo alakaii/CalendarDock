@@ -60,6 +60,7 @@ const defaults: StoredSettings = {
   artScaleMode: 'fill',
   artPixelated: true,
   artIconFill:  true,
+  whiteboxOpacity: 0,
   lists: [
     { id: 'chores', name: 'Chores', items: [] }
   ],
@@ -286,6 +287,10 @@ export const settingsService = {
 
   setArtIconFill(fill: boolean): void {
     store.set('artIconFill', fill)
+  },
+
+  setWhiteboxOpacity(opacity: number): void {
+    store.set('whiteboxOpacity', Math.max(0, Math.min(100, Math.round(opacity))))
   },
 
   setLaunchOnStartup(enabled: boolean): void {
