@@ -36,8 +36,20 @@ const ALL_CORNERS = Object.keys(ANCHORS) as StandbyCorner[]
 // Minimum horizontal pixels to count as a swipe
 const SWIPE_THRESHOLD = 50
 
+// Wake-immunity window after the backlight goes OFF: taps within this window are
+// swallowed instead of waking the screen. Covers the user's own verification
+// tap (tapping the dark screen to check it really slept) and power-transition
+// phantom touches from the capacitive panel reacting to the backlight cut.
+// Nobody legitimately needs to wake within 8s of the screen going dark; a tap
+// after the window works normally. Measured from the OFF moment ONLY — never
+// refreshed by the swallowed taps themselves, so a jittery panel can't lock
+// wake-out forever (the recovery tap from a dark screen must always eventually
+// work).
+const WAKE_IMMUNITY_MS = 8000
+
 export default function StandbyOverlay() {
-  const setMode       = useUIStore((s) => s.setMode)
+  const setMode        = useUIStore((s) => s.setMode)
+  const backlightOffAt = useUIStore((s) => s.backlightOffAt)
   const slideshow     = useSettingsStore((s) => s.slideshow)
   const layout        = useSettingsStore((s) => s.standbyLayout)
   const exitGesture   = useSettingsStore((s) => s.standbyExitGesture)
@@ -49,6 +61,9 @@ export default function StandbyOverlay() {
   // Pointer tracking refs for swipe & tap detection
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const lastTapRef      = useRef<number>(0)
+  // backlightOffAt value we've already logged an "ignored" warn for, so the
+  // journal gets at most one line per immunity window (no per-tap spam).
+  const warnedOffAtRef  = useRef<number | null>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
@@ -74,6 +89,18 @@ export default function StandbyOverlay() {
 
     // ── Tap: pointer barely moved ─────────────────────────────────────────
     if (Math.abs(dx) > 20 || Math.abs(dy) > 20) return // too much movement
+
+    // ── Wake-immunity: swallow taps for a moment after the backlight went off.
+    // Fixed window from the OFF moment only — do nothing (no mode change, no
+    // double-tap bookkeeping), so a swallowed tap can never refresh the window
+    // or advance the double-tap timer.
+    if (backlightOffAt != null && Date.now() - backlightOffAt < WAKE_IMMUNITY_MS) {
+      if (warnedOffAtRef.current !== backlightOffAt) {
+        warnedOffAtRef.current = backlightOffAt
+        console.warn('[standby] wake tap ignored (immunity window)')
+      }
+      return
+    }
 
     if (exitGesture === 'single-tap') {
       setMode('app', 'touch-wake')

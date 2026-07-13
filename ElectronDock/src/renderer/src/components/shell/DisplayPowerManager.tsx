@@ -26,9 +26,10 @@ import { isInDeepSleepNow } from '../../utils/deepSleep'
  * and never touches the inactivity timer.
  */
 export default function DisplayPowerManager() {
-  const mode           = useUIStore((s) => s.mode)
-  const dayMode        = useUIStore((s) => s.dayMode)
-  const forceDeepSleep = useUIStore((s) => s.forceDeepSleep)
+  const mode              = useUIStore((s) => s.mode)
+  const dayMode           = useUIStore((s) => s.dayMode)
+  const forceDeepSleep    = useUIStore((s) => s.forceDeepSleep)
+  const setBacklightOffAt = useUIStore((s) => s.setBacklightOffAt)
 
   const cameraEnabled              = useSettingsStore((s) => s.cameraWakeEnabled)
   const deepSleepStart             = useSettingsStore((s) => s.deepSleepStart)
@@ -74,6 +75,9 @@ export default function DisplayPowerManager() {
     if (backlightOffRef.current === !on) return // already in target state
     backlightOffRef.current = !on
     console.warn(`[backlight] request ${on ? 'on' : 'off'} (cause: ${cause})`)
+    // Record when the backlight goes dark (and clear on turn-on) so the standby
+    // wake path can enforce a wake-immunity window right after off.
+    setBacklightOffAt(on ? null : Date.now())
     window.api.system.setDisplayPower(on).catch(() => {})
   }
 

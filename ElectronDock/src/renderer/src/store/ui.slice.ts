@@ -21,6 +21,14 @@ interface UIState {
    * immediately.
    */
   forceDeepSleep: boolean
+  /**
+   * Timestamp (Date.now()) of the last time the backlight was turned OFF, or
+   * null while it is on. Written by DisplayPowerManager on every off/on
+   * transition; read by StandbyOverlay to enforce a brief wake-immunity window
+   * so a verification tap or power-transition phantom touch right after the
+   * screen goes dark can't instantly wake it back up.
+   */
+  backlightOffAt: number | null
   /** Reactive calendar display state — updated by CalendarView, read by AppHeader */
   calendarDate: Date
   calendarView: CalView
@@ -29,6 +37,7 @@ interface UIState {
   setPage: (page: AppPage) => void
   setDayMode: (mode: DayMode) => void
   setForceDeepSleep: (force: boolean) => void
+  setBacklightOffAt: (at: number | null) => void
   toggleChipHidden: (calendarId: string) => void
   setCalendarDate: (date: Date) => void
   setCalendarView: (view: CalView) => void
@@ -40,6 +49,7 @@ export const useUIStore = create<UIState>((set) => ({
   dayMode: 'passive',
   chipHiddenIds: new Set(),
   forceDeepSleep: false,
+  backlightOffAt: null,
   calendarDate: new Date(),
   calendarView: 'timeGridWeek',
   // Mode change auto-clears the manual deep-sleep override on wake to 'app'.
@@ -67,6 +77,7 @@ export const useUIStore = create<UIState>((set) => ({
     console.warn(`[standby] forceDeepSleep ${forceDeepSleep ? 'set' : 'cleared'}`)
     set({ forceDeepSleep })
   },
+  setBacklightOffAt: (backlightOffAt) => set({ backlightOffAt }),
   toggleChipHidden: (calendarId) =>
     set((s) => {
       const next = new Set(s.chipHiddenIds)
