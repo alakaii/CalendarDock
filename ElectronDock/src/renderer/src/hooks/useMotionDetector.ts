@@ -17,7 +17,6 @@ export const BG_ALPHA = 0.008
 export interface MotionDetectorOptions {
   enabled:    boolean
   fps:        number
-  background: number[] | null   // optional EMA seed (empty-room snapshot)
   threshold:  number       // 0.0–1.0 coverage fraction
   pixelNoise: number       // per-pixel diff floor (0–255)
   onMotion:   () => void
@@ -25,18 +24,17 @@ export interface MotionDetectorOptions {
 }
 
 /**
- * Seed a fresh adaptive-background buffer. Prefers a stored empty-room
- * snapshot; otherwise starts from the first observed frame (so the very first
- * comparison is against itself and scores ~0). Float32 is required — integer
- * rounding at this low alpha would freeze the running average.
+ * Seed a fresh adaptive-background buffer from the first observed frame, so the
+ * very first comparison is against itself and scores ~0. (A stored empty-room
+ * snapshot is deliberately NOT used: it goes stale as lighting drifts, which
+ * made the score start high and slowly decay over the EMA time constant. The
+ * background self-adapts, so seeding from the current frame is both simpler and
+ * correct.) Float32 is required — integer rounding at this low alpha would
+ * freeze the running average.
  */
-export function seedBackground(gray: Uint8Array, stored?: ArrayLike<number> | null): Float32Array {
+export function seedBackground(gray: Uint8Array): Float32Array {
   const bg = new Float32Array(gray.length)
-  if (stored && stored.length === gray.length) {
-    for (let i = 0; i < gray.length; i++) bg[i] = stored[i]
-  } else {
-    for (let i = 0; i < gray.length; i++) bg[i] = gray[i]
-  }
+  for (let i = 0; i < gray.length; i++) bg[i] = gray[i]
   return bg
 }
 
@@ -90,12 +88,11 @@ export function useMotionDetector(opts: MotionDetectorOptions): void {
     }
     const luminance = lumSum / FRAME_PX / 255
 
-    // Adaptive background: seed on the first frame (from the stored empty-room
-    // snapshot if present, else this frame), then diff-and-update every frame.
-    // Because the reference tracks the scene, only *changes relative to the
-    // recent past* score — lighting drift since calibration no longer counts
-    // as permanent motion the way a frozen static reference did.
-    if (!bgRef.current) bgRef.current = seedBackground(gray, o.background)
+    // Adaptive background: seed on the first observed frame, then
+    // diff-and-update every frame. Because the reference tracks the scene, only
+    // *changes relative to the recent past* score — lighting drift no longer
+    // counts as permanent motion the way a frozen static reference did.
+    if (!bgRef.current) bgRef.current = seedBackground(gray)
     const score = scoreAndUpdate(gray, bgRef.current, o.pixelNoise)
 
     o.onFrame?.(score, luminance)

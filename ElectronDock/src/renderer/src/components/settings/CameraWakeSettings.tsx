@@ -53,6 +53,11 @@ export default function CameraWakeSettings() {
   const [triggerCount, setTriggerCount] = useState(0)
   const [noiseFloor, setNoiseFloor]   = useState(0)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  // Red-border signal for the test view: true while the live score is over
+  // threshold, held ~1s after the last over-threshold frame so brief spikes
+  // are visible instead of flickering for a single frame.
+  const [motionHot, setMotionHot]     = useState(false)
+  const motionHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Camera refs
   const videoRef    = useRef<HTMLVideoElement | null>(null)
@@ -157,8 +162,9 @@ export default function CameraWakeSettings() {
 
   // ── Phase: sampling ─────────────────────────────────────────────────────────
   // Run the *adaptive* detector on the empty room, track the peak coverage
-  // score (the noise floor), then set the threshold a margin above it and
-  // store the settled background as the EMA seed for the live detector.
+  // score (the noise floor), then set the threshold a margin above it. No
+  // background snapshot is stored — the live detector self-seeds from its own
+  // first frame, so a persisted snapshot would only go stale.
 
   useEffect(() => {
     if (phase !== 'sampling') return
@@ -187,9 +193,11 @@ export default function CameraWakeSettings() {
           return
         }
         const newThreshold = Math.max(MIN_THRESHOLD, round3(maxScore + NOISE_MARGIN))
-        const seed = Array.from(bg, (v) => Math.round(v))
         setNoiseFloor(maxScore)
-        setCameraWakeCalibration(seed, newThreshold)
+        // Persist an empty marker (not a background snapshot). The value only
+        // flips `isCalibrated` on; the adaptive detector no longer seeds from a
+        // stored frame, so there is nothing worth storing here.
+        setCameraWakeCalibration([], newThreshold)
         stopCamera()
         setPhase('complete')
       }
@@ -210,19 +218,32 @@ export default function CameraWakeSettings() {
     setPeakScore(0)
     setTriggerCount(0)
     setLiveScore(0)
+    setMotionHot(false)
     const iv = setInterval(() => {
       const gray = grabGray()
       if (!gray) return
-      if (!bgRef.current) bgRef.current = seedBackground(gray, background)
+      // Seed from the first observed frame (never a stored snapshot) so the
+      // score starts ~0 and only real motion registers.
+      if (!bgRef.current) bgRef.current = seedBackground(gray)
       const s = scoreAndUpdate(gray, bgRef.current, pixelNoise)
       setLiveScore(s)
       setPeakScore((p) => (s > p ? s : p))
       const over = s > threshold
       if (over && !prevOverRef.current) setTriggerCount((c) => c + 1)
       prevOverRef.current = over
+      // Drive the red border: light up on any over-threshold frame and hold
+      // for ~1s so spikes are visible rather than one-frame flickers.
+      if (over) {
+        setMotionHot(true)
+        if (motionHotTimerRef.current) clearTimeout(motionHotTimerRef.current)
+        motionHotTimerRef.current = setTimeout(() => setMotionHot(false), 1000)
+      }
     }, SAMPLE_INTERVAL)
-    return () => clearInterval(iv)
-  }, [phase, grabGray, pixelNoise, threshold, background])
+    return () => {
+      clearInterval(iv)
+      if (motionHotTimerRef.current) { clearTimeout(motionHotTimerRef.current); motionHotTimerRef.current = null }
+    }
+  }, [phase, grabGray, pixelNoise, threshold])
 
   // ── Wizard actions ─────────────────────────────────────────────────────────────
 
@@ -254,6 +275,8 @@ export default function CameraWakeSettings() {
     stopCamera()
     bgRef.current = null
     prevOverRef.current = false
+    if (motionHotTimerRef.current) { clearTimeout(motionHotTimerRef.current); motionHotTimerRef.current = null }
+    setMotionHot(false)
     setPhase('idle')
   }
 
@@ -519,7 +542,11 @@ export default function CameraWakeSettings() {
       {showCamera && (
         <div
           className="rounded-xl overflow-hidden"
-          style={{ border: '1px solid var(--card-border)', background: '#000' }}
+          style={{
+            border: phase === 'testing' && motionHot ? '2px solid #ef4444' : '1px solid var(--card-border)',
+            background: '#000',
+            transition: 'border-color 0.15s ease-out',
+          }}
         >
           <video
             ref={videoRef}
@@ -589,7 +616,11 @@ export default function CameraWakeSettings() {
           <div className="space-y-3">
             <div
               className="rounded-xl p-4 space-y-3"
-              style={{ background: 'var(--card-bg)', border: '2px solid #3b82f6' }}
+              style={{
+                background: 'var(--card-bg)',
+                border: `2px solid ${motionHot ? '#ef4444' : '#3b82f6'}`,
+                transition: 'border-color 0.15s ease-out',
+              }}
             >
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#3b82f6' }} />
@@ -598,7 +629,8 @@ export default function CameraWakeSettings() {
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 Wave and the score spikes; stand still and it settles back toward zero as the scene
                 blends into the adaptive background. With an empty, static room "Triggers" stays at 0.
-                The blue border marks test mode — wake actions are not triggered.
+                The border flashes red whenever motion crosses the threshold. The blue window edge
+                marks test mode — wake actions are not triggered.
               </p>
 
               <ScoreBar score={liveScore} thresh={threshold} label="Live motion score" />

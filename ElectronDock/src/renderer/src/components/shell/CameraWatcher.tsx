@@ -24,7 +24,6 @@ export default function CameraWatcher() {
   const deepSleepEnd               = useSettingsStore((s) => s.deepSleepEnd)
   const threshold                  = useSettingsStore((s) => s.cameraWakeThreshold)
   const pixelNoise                 = useSettingsStore((s) => s.cameraWakePixelNoise)
-  const background                 = useSettingsStore((s) => s.cameraWakeBackground)
   const motionSustainSeconds       = useSettingsStore((s) => s.motionSustainSeconds)
   const activeHoldMinutes          = useSettingsStore((s) => s.activeHoldMinutes)
 
@@ -152,7 +151,6 @@ export default function CameraWatcher() {
   useMotionDetector({
     enabled: enabled && !inDeepSleep,
     fps:     FPS,
-    background,
     threshold,
     pixelNoise,
     onMotion: handleMotion,
