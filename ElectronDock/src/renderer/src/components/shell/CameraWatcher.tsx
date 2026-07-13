@@ -8,6 +8,14 @@ import { isInDeepSleepNow } from '../../utils/deepSleep'
 const ANY_MOTION_THRESHOLD = 0.03
 const FPS = 4
 
+/**
+ * Grace period after "Deep Sleep Now" is pressed during which sustained motion
+ * will NOT clear the override. The presser is standing right in front of the
+ * camera when they tap the button; without this window their own lingering
+ * presence would trip passive→active and instantly undo the press.
+ */
+const PRESS_IMMUNITY_MS = 5 * 60_000
+
 // NOTE: the backlight is owned by DisplayPowerManager, not here. This component
 // only runs the camera and drives the passive ↔ active dayMode. Night sleep
 // must never depend on this feature, so it deliberately does not touch the
@@ -16,8 +24,10 @@ const FPS = 4
 export default function CameraWatcher() {
   const mode             = useUIStore((s) => s.mode)
   const dayMode          = useUIStore((s) => s.dayMode)
-  const setDayMode       = useUIStore((s) => s.setDayMode)
-  const forceDeepSleep   = useUIStore((s) => s.forceDeepSleep)
+  const setDayMode          = useUIStore((s) => s.setDayMode)
+  const forceDeepSleep      = useUIStore((s) => s.forceDeepSleep)
+  const forceDeepSleepSetAt = useUIStore((s) => s.forceDeepSleepSetAt)
+  const setForceDeepSleep   = useUIStore((s) => s.setForceDeepSleep)
 
   const enabled                    = useSettingsStore((s) => s.cameraWakeEnabled)
   const deepSleepStart             = useSettingsStore((s) => s.deepSleepStart)
@@ -35,9 +45,12 @@ export default function CameraWatcher() {
     return () => clearInterval(iv)
   }, [])
 
-  // The camera stays off inside the deep-sleep window and while the manual
-  // "Deep Sleep Now" override is active. Backlight is handled elsewhere.
-  const inDeepSleep = (enabled && isInDeepSleepNow(deepSleepStart, deepSleepEnd)) || forceDeepSleep
+  // The camera stays off ONLY inside the *scheduled* deep-sleep window. The
+  // manual "Deep Sleep Now" override deliberately does NOT gate it: outside the
+  // window the camera is the only wake sensor (touch is dead while the panel is
+  // dark), so it must keep running to detect a return and release the override
+  // (see handleFrame). Backlight is handled elsewhere.
+  const inScheduledDeepSleep = enabled && isInDeepSleepNow(deepSleepStart, deepSleepEnd)
 
   // ── Pause downloads when user is actively using the app ──────────────────────
   useEffect(() => {
@@ -45,15 +58,17 @@ export default function CameraWatcher() {
   }, [mode])
 
   // ── Dawn signal: deep sleep end → refresh Dropbox index + top up cache ───────
-  const prevInDeepSleepRef = useRef(inDeepSleep)
+  // Keyed on the scheduled window (not the manual override) — dawn is a clock
+  // event, so a daytime button press/clear must never masquerade as it.
+  const prevScheduledDeepSleepRef = useRef(inScheduledDeepSleep)
   useEffect(() => {
-    const wasInDeepSleep = prevInDeepSleepRef.current
-    prevInDeepSleepRef.current = inDeepSleep
+    const wasInScheduledDeepSleep = prevScheduledDeepSleepRef.current
+    prevScheduledDeepSleepRef.current = inScheduledDeepSleep
     // Trigger only on the true→false transition (deep sleep just ended = dawn)
-    if (wasInDeepSleep && !inDeepSleep) {
+    if (wasInScheduledDeepSleep && !inScheduledDeepSleep) {
       window.api.photos.wakeFromDeepSleep().catch(() => {})
     }
-  }, [inDeepSleep])
+  }, [inScheduledDeepSleep])
 
   // ── Mutable refs (not triggering re-renders) ────────────────────────────────
 
@@ -69,6 +84,16 @@ export default function CameraWatcher() {
   activeHoldRef.current        = activeHoldMinutes
   const setDayModeRef          = useRef(setDayMode)
   setDayModeRef.current        = setDayMode
+  const forceDeepSleepRef      = useRef(forceDeepSleep)
+  forceDeepSleepRef.current    = forceDeepSleep
+  const forceDeepSleepSetAtRef = useRef(forceDeepSleepSetAt)
+  forceDeepSleepSetAtRef.current = forceDeepSleepSetAt
+  const setForceDeepSleepRef   = useRef(setForceDeepSleep)
+  setForceDeepSleepRef.current = setForceDeepSleep
+  const deepSleepStartRef      = useRef(deepSleepStart)
+  deepSleepStartRef.current    = deepSleepStart
+  const deepSleepEndRef        = useRef(deepSleepEnd)
+  deepSleepEndRef.current      = deepSleepEnd
 
   // ── Cleanup timers on unmount ────────────────────────────────────────────────
 
@@ -130,6 +155,32 @@ export default function CameraWatcher() {
         } else if (Date.now() - sustainStartRef.current >= motionSustainRef.current * 1_000) {
           sustainStartRef.current = null
           setDayModeRef.current('active')   // hold timer starts via useEffect above
+
+          // Motion escape from a daytime forced deep sleep. The passive→active
+          // transition means someone sustained-moved after the room had gone
+          // empty (dayMode only sits at passive again once activeHoldMinutes of
+          // stillness elapsed), i.e. a genuine re-entry — so release the
+          // override and let DisplayPowerManager's occupancy branch relight the
+          // standby slideshow on its own. Guards:
+          //   - only outside the scheduled window (inside it the schedule owns
+          //     sleep and the camera is off anyway)
+          //   - only past PRESS_IMMUNITY_MS so the presser's own lingering
+          //     presence at press time can't instantly undo the button.
+          //
+          // Net semantics: press the button while you're in the room → screen
+          // stays dark as long as you stay (dayMode holds active, no
+          // transition). Leave (dayMode → passive after activeHoldMinutes) and
+          // return later → this passive→active clears the flag and relights. At
+          // 21:00 the scheduled window takes over regardless; at 06:00 window
+          // exit (DisplayPowerManager) is the guaranteed escape.
+          if (
+            forceDeepSleepRef.current &&
+            forceDeepSleepSetAtRef.current !== null &&
+            !isInDeepSleepNow(deepSleepStartRef.current, deepSleepEndRef.current) &&
+            Date.now() - forceDeepSleepSetAtRef.current > PRESS_IMMUNITY_MS
+          ) {
+            setForceDeepSleepRef.current(false, 'motion')
+          }
         }
       } else {
         sustainStartRef.current = null
@@ -149,7 +200,7 @@ export default function CameraWatcher() {
   }
 
   useMotionDetector({
-    enabled: enabled && !inDeepSleep,
+    enabled: enabled && !inScheduledDeepSleep,
     fps:     FPS,
     threshold,
     pixelNoise,

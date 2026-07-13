@@ -15,12 +15,23 @@ interface UIState {
    * Camera Wake settings — makes DisplayPowerManager treat the system as if
    * inside the deep-sleep time window, so the backlight goes off immediately
    * on entering standby instead of waiting passiveBacklightOffMinutes.
-   * Auto-clears the next time mode flips back to exactly 'app' (a touch wake).
+   * Clears on any of: a touch wake (mode → 'app'), the scheduled deep-sleep
+   * window exiting (DisplayPowerManager), or sustained daytime motion outside
+   * the window (CameraWatcher). Because touch is dead while the panel is dark,
+   * the latter two are the only escape paths when the button is pressed and no
+   * one ever taps the (unwakeable) screen.
    * StandbyOverlay MUST call setMode('app') — an invalid mode value would
    * skip this auto-clear and leave every later standby cutting the backlight
    * immediately.
    */
   forceDeepSleep: boolean
+  /**
+   * Timestamp (Date.now()) when forceDeepSleep was last set, or null while it
+   * is unset. Read by CameraWatcher to enforce a press-immunity window: the
+   * presser's own lingering presence must not instantly undo the button via
+   * the motion escape path.
+   */
+  forceDeepSleepSetAt: number | null
   /**
    * Timestamp (Date.now()) of the last time the backlight was turned OFF, or
    * null while it is on. Written by DisplayPowerManager on every off/on
@@ -36,7 +47,7 @@ interface UIState {
   setMode: (mode: AppMode, cause?: string) => void
   setPage: (page: AppPage) => void
   setDayMode: (mode: DayMode) => void
-  setForceDeepSleep: (force: boolean) => void
+  setForceDeepSleep: (force: boolean, cause?: string) => void
   setBacklightOffAt: (at: number | null) => void
   toggleChipHidden: (calendarId: string) => void
   setCalendarDate: (date: Date) => void
@@ -49,6 +60,7 @@ export const useUIStore = create<UIState>((set) => ({
   dayMode: 'passive',
   chipHiddenIds: new Set(),
   forceDeepSleep: false,
+  forceDeepSleepSetAt: null,
   backlightOffAt: null,
   calendarDate: new Date(),
   calendarView: 'timeGridWeek',
@@ -62,7 +74,7 @@ export const useUIStore = create<UIState>((set) => ({
       console.warn(`[standby] ${mode === 'standby' ? 'enter' : 'exit'} (cause: ${cause ?? 'unspecified'})`)
       if (mode === 'app' && s.forceDeepSleep) {
         console.warn('[standby] forceDeepSleep cleared (cause: wake-to-app)')
-        return { mode, forceDeepSleep: false }
+        return { mode, forceDeepSleep: false, forceDeepSleepSetAt: null }
       }
       return { mode }
     }),
@@ -73,9 +85,17 @@ export const useUIStore = create<UIState>((set) => ({
       console.warn(`[standby] dayMode ${dayMode} (room ${dayMode === 'active' ? 'occupied' : 'empty'})`)
       return { dayMode }
     }),
-  setForceDeepSleep: (forceDeepSleep) => {
-    console.warn(`[standby] forceDeepSleep ${forceDeepSleep ? 'set' : 'cleared'}`)
-    set({ forceDeepSleep })
+  // Stamp forceDeepSleepSetAt on set (drives CameraWatcher's press-immunity),
+  // null it on clear. `cause` labels the journal for the clear paths
+  // (window-exit, motion); a bare set logs without one.
+  setForceDeepSleep: (forceDeepSleep, cause) => {
+    if (forceDeepSleep) {
+      console.warn('[standby] forceDeepSleep set')
+      set({ forceDeepSleep: true, forceDeepSleepSetAt: Date.now() })
+    } else {
+      console.warn(`[standby] forceDeepSleep cleared (cause: ${cause ?? 'unspecified'})`)
+      set({ forceDeepSleep: false, forceDeepSleepSetAt: null })
+    }
   },
   setBacklightOffAt: (backlightOffAt) => set({ backlightOffAt }),
   toggleChipHidden: (calendarId) =>

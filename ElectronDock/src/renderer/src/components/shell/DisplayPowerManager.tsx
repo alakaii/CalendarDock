@@ -23,12 +23,16 @@ import { isInDeepSleepNow } from '../../utils/deepSleep'
  * forceDeepSleep (the "Deep Sleep Now" button) behaves like being inside the
  * window for one cycle. Turning the screen back on from occupancy keeps the
  * app in standby — this component never dispatches input, never changes mode,
- * and never touches the inactivity timer.
+ * and never touches the inactivity timer. It DOES release forceDeepSleep when
+ * the scheduled window exits (see the transition effect below): touch is dead
+ * while dark, so the window boundary is a guaranteed escape from a stuck
+ * override.
  */
 export default function DisplayPowerManager() {
   const mode              = useUIStore((s) => s.mode)
   const dayMode           = useUIStore((s) => s.dayMode)
   const forceDeepSleep    = useUIStore((s) => s.forceDeepSleep)
+  const setForceDeepSleep = useUIStore((s) => s.setForceDeepSleep)
   const setBacklightOffAt = useUIStore((s) => s.setBacklightOffAt)
 
   const cameraEnabled              = useSettingsStore((s) => s.cameraWakeEnabled)
@@ -55,8 +59,16 @@ export default function DisplayPowerManager() {
     if (inWindow !== prevWindowRef.current) {
       prevWindowRef.current = inWindow
       console.warn(`[backlight] deep-sleep window ${inWindow ? 'enter' : 'exit'} (${deepSleepStart}-${deepSleepEnd})`)
+      // Escape hatch: leaving the scheduled window releases a manual
+      // "Deep Sleep Now" override too. Otherwise a button press before the
+      // window (touch dead while dark, camera the only other wake path) could
+      // leave the kiosk stuck dark past the window end. setForceDeepSleep logs
+      // the single '(cause: window-exit)' clear line.
+      if (!inWindow && forceDeepSleep) {
+        setForceDeepSleep(false, 'window-exit')
+      }
     }
-  }, [inWindow, deepSleepStart, deepSleepEnd])
+  }, [inWindow, deepSleepStart, deepSleepEnd, forceDeepSleep, setForceDeepSleep])
 
   // ── Backlight state machine ──────────────────────────────────────────────
   // Starts pessimistic (off) so the first app-mode pass always issues an
