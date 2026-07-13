@@ -8,23 +8,48 @@ const execAsync = promisify(exec)
 export function registerSystemHandlers(win: BrowserWindow): void {
   ipcMain.handle('system:set-display-power', async (_event, { on }: { on: boolean }) => {
     if (process.platform !== 'linux') return
-    // Wayland kiosks can't use `xset dpms` (the X server isn't there in the
-    // first place). The app drives /sys/class/backlight/ via a tiny sudo'd
-    // helper deployed by the self-update / kiosk-bootstrap scripts. The
-    // sudoers rule (calendardock-kiosk-update) only allows these two exact
-    // command lines, so this is the entirety of what we can shell out to:
     const arg = on ? 'on' : 'off'
+
+    // PRIMARY: GNOME Mutter DPMS on the session bus. On this hardware the eDP
+    // intel_backlight panel is NOT the visible wall screen, so writing
+    // /sys/class/backlight/ has no visible effect — driving Mutter's
+    // PowerSaveMode is what actually blanks/relights the display. The systemd
+    // service already exports DBUS_SESSION_BUS_ADDRESS + XDG_RUNTIME_DIR, so
+    // `busctl --user` works from the main process with no sudo. PowerSaveMode:
+    // 0 = on, 3 = off. GNOME auto-wakes DPMS on any user input, so a touch
+    // while dark relights the panel at the compositor level even before the app
+    // processes the tap; the app's wake path then re-asserts PowerSaveMode=0. If
+    // phantom-touch relights become a problem later, a periodic re-assert can be
+    // added — not now.
+    const psm = on ? 0 : 3
+    let mutterOk = false
+    try {
+      await execAsync(
+        `busctl --user set-property org.gnome.Mutter.DisplayConfig /org/gnome/Mutter/DisplayConfig org.gnome.Mutter.DisplayConfig PowerSaveMode i ${psm}`,
+        { env: process.env }
+      )
+      mutterOk = true
+      console.warn(`[backlight] mutter dpms ${arg} ok`)
+    } catch (err) {
+      console.warn(`[backlight] mutter dpms ${arg} failed:`, err)
+    }
+
+    // SECONDARY: the sudo'd intel_backlight helper deployed by the self-update /
+    // kiosk-bootstrap scripts. Harmless here (no visible panel), still correct
+    // on hardware where eDP IS the visible panel. The sudoers rule
+    // (calendardock-kiosk-update) only allows these two exact command lines.
+    let backlightOk = false
     try {
       await execAsync(`sudo -n /usr/local/bin/calendardock-display-power ${arg}`)
-      // Log success too so the journal shows every backlight transition, not
-      // just failures — makes standby/sleep timing diagnosable after the fact.
+      backlightOk = true
       console.warn(`[backlight] setDisplayPower(${arg}) ok`)
     } catch (err) {
-      // Non-fatal: log so it shows up in journalctl, but don't crash the
-      // standby flow. Most likely causes: helper not deployed yet (first
-      // install before the kiosk has run a self-update with extraResources),
-      // or no /sys/class/backlight on the host.
       console.warn(`[system] setDisplayPower(${arg}) failed:`, err)
+    }
+
+    // Only warn-fail the overall op if BOTH mechanisms failed.
+    if (!mutterOk && !backlightOk) {
+      console.warn(`[system] setDisplayPower(${arg}) failed: no mechanism succeeded`)
     }
   })
 
