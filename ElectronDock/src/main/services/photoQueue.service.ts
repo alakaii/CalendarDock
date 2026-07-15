@@ -49,6 +49,23 @@ function fisherYates(arr: string[]): void {
   }
 }
 
+/**
+ * De-duplicate a FIFO name list, keeping the LAST occurrence of each name so a
+ * re-downloaded (freshest) photo keeps its position at the back of the queue.
+ * Order is otherwise preserved.
+ */
+function dedupeKeepLast(names: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (let i = names.length - 1; i >= 0; i--) {
+    if (!seen.has(names[i])) {
+      seen.add(names[i])
+      out.unshift(names[i])
+    }
+  }
+  return out
+}
+
 // ── Module state ──────────────────────────────────────────────────────────────
 
 let mainWin: BrowserWindow | null = null
@@ -72,6 +89,19 @@ function emit(pct: number, status: string): void {
  */
 function syncPhotos(): void {
   if (mainWin) photosService.setList(downloadedFiles, mainWin)
+}
+
+/**
+ * Drop tracked names whose file no longer exists on disk, and collapse any
+ * duplicate entries. Self-heals historical drift (e.g. a name unlinked while a
+ * phantom second entry lived on) so the renderer never lists a dead file.
+ */
+function reconcileTracker(cacheDir: string): void {
+  const before  = downloadedFiles.length
+  const present = downloadedFiles.filter((f) => existsSync(join(cacheDir, f)))
+  downloadedFiles = dedupeKeepLast(present)
+  const dropped = before - downloadedFiles.length
+  if (dropped > 0) console.log(`[photoQueue] reconciled ${dropped} stale entries`)
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -258,7 +288,10 @@ export const photoQueueService = {
       const allPhotos = await dropboxService.listAllPhotosMulti(settings.dropboxFolderPaths)
       shuffledQueue   = [...allPhotos]
       fisherYates(shuffledQueue)
-      queuePointer    = downloadedFiles.length  // skip re-downloading what we still have
+      // Positional skip: only approximate after a full re-shuffle (the first N
+      // entries are no longer "what we still have"), so this batch can overlap
+      // names we still track. The dedupe-append below makes that harmless.
+      queuePointer    = downloadedFiles.length
       emit(20, `Index refreshed — ${allPhotos.length} total photos`)
 
       // 3. Top up to the configured cache size
@@ -275,9 +308,15 @@ export const photoQueueService = {
         const newFiles = toBatch
           .map((p) => cacheNameForPath(p))
           .filter((f) => existsSync(join(cacheDir, f)))
+        // Dedupe-append: drop any tracked entries this batch re-downloaded
+        // before pushing the fresh copies, so a post-shuffle positional
+        // overlap can't create duplicate tracker entries.
+        const newSet    = new Set(newFiles)
+        downloadedFiles = downloadedFiles.filter((f) => !newSet.has(f))
         downloadedFiles.push(...newFiles)
       }
 
+      reconcileTracker(cacheDir)
       settingsService.setDropboxLastSync(Date.now())
       syncPhotos()
       emit(100, `Done — ${downloadedFiles.length} photos in cache`)
@@ -337,17 +376,32 @@ export const photoQueueService = {
         return
       }
 
-      // 4. Evict only as many oldest files as we successfully downloaded —
-      //    bounded by downloadedFiles.length so we never under-flow.
-      const evictCount = Math.min(newFiles.length, downloadedFiles.length)
+      // 4. Reconcile the tracker against this batch BEFORE evicting anything.
+      //    With a Dropbox pool smaller than the cache target the shuffled queue
+      //    wraps (see step 1) and this batch can re-download names we're already
+      //    tracking. Those files were just refreshed on disk — they are the
+      //    FRESHEST, never eviction candidates. Pull any such entries out of the
+      //    FIFO now (they get re-appended at the back in step 6), and count only
+      //    genuinely-new names toward the eviction budget. Without this, wrap-
+      //    around eviction unlinks the very files this batch just downloaded.
+      const newSet     = new Set(newFiles)
+      const prevSet    = new Set(downloadedFiles)
+      const newlyAdded = newFiles.reduce((n, f) => (prevSet.has(f) ? n : n + 1), 0)
+      downloadedFiles  = downloadedFiles.filter((f) => !newSet.has(f))
+
+      // 5. Evict up to `newlyAdded` oldest remaining files so the cache stays at
+      //    target size — bounded by length so we never under-flow.
+      const evictCount = Math.min(newlyAdded, downloadedFiles.length)
       const toEvict    = downloadedFiles.splice(0, evictCount)
       for (const filename of toEvict) {
         await unlink(join(cacheDir, filename)).catch(() => {})
       }
 
-      // 5. Append the freshly-downloaded files
+      // 6. Append the freshly-downloaded files at the back (freshest last),
+      //    then reconcile so disk + tracker stay consistent and dup-free.
       downloadedFiles.push(...newFiles)
-      console.log(`[photoQueue] Top-up: +${newFiles.length}, -${toEvict.length} → ${downloadedFiles.length} total`)
+      reconcileTracker(cacheDir)
+      console.log(`[photoQueue] Top-up: +${newlyAdded}, -${toEvict.length} → ${downloadedFiles.length} total`)
       syncPhotos()
     } catch (err) {
       console.error('[photoQueue] Top-up failed:', err)

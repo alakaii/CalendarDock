@@ -80,6 +80,15 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
     // pops in halfway through the fade.
     const preloadCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
     const preloadOrderRef = useRef<string[]>([])
+
+    // ── Broken-photo skip ───────────────────────────────────────────────────
+    // The disk cache can list names whose file is gone (evicted mid-rotation,
+    // failed download). Their <img> fires onError → we remember the name for
+    // this session and skip it in future rotations, and advance past it now.
+    // Throttled so a run of broken names can't spin the buffer faster than the
+    // interval (at most one advance per 300ms).
+    const failedRef           = useRef<Set<string>>(new Set())
+    const lastErrorAdvanceRef = useRef(0)
     const preload = (url: string) => {
       const cache = preloadCacheRef.current
       if (cache.has(url)) return
@@ -113,6 +122,40 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
     const photoUrl = (filename: string) =>
       `cdphoto://photo/${encodeURIComponent(filename)}`
 
+    // Next index after `from` whose photo hasn't failed this session. Falls back
+    // to a plain +1 step if every photo is marked failed (avoids an infinite
+    // loop and keeps the show moving).
+    const nextLiveIndex = (from: number): number => {
+      const arr = sortedRef.current
+      const len = arr.length
+      for (let step = 1; step <= len; step++) {
+        const idx = (from + step) % len
+        if (!failedRef.current.has(arr[idx])) return idx
+      }
+      return (from + 1) % len
+    }
+
+    // A rendered <img> failed to load. Remember the name so it's skipped from
+    // now on; if the failed layer is the one currently on screen, advance past
+    // it to the next live photo (throttled to one advance per 300ms).
+    const handleImgError = (name: string, layer: 'front' | 'back') => {
+      failedRef.current.add(name)
+      const isVisible = layer === (showFrontRef.current ? 'front' : 'back')
+      if (!isVisible) return
+      const now = Date.now()
+      if (now - lastErrorAdvanceRef.current < 300) return
+      lastErrorAdvanceRef.current = now
+      if (sortedRef.current.length < 2) return
+      setShowFront((prev) => {
+        const cur  = prev ? frontIdxRef.current : backIdxRef.current
+        const next = nextLiveIndex(cur)
+        if (prev) { backIdxRef.current  = next; setBackIndex(next)  }
+        else      { frontIdxRef.current = next; setFrontIndex(next) }
+        preload(photoUrl(sortedRef.current[nextLiveIndex(next)]))
+        return !prev
+      })
+    }
+
     // Whenever the photo list changes, prime the preloader with the next
     // few images so the first transitions don't start cold.
     useEffect(() => {
@@ -136,7 +179,7 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
           const len = sortedRef.current.length
           if (len < 2) return prev
           const cur  = prev ? frontIdxRef.current : backIdxRef.current
-          const next = (cur + 1) % len
+          const next = nextLiveIndex(cur)
           if (prev) {
             backIdxRef.current = next
             setBackIndex(next)
@@ -164,12 +207,10 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
       if (sortedRef.current.length < 2) return
       intervalRef.current = setInterval(() => {
         setShowFront((p) => {
-          const len = sortedRef.current.length
-          const ni  = (p ? frontIdxRef.current : backIdxRef.current) + 1
-          const si  = ni % len
+          const si  = nextLiveIndex(p ? frontIdxRef.current : backIdxRef.current)
           if (p) { backIdxRef.current  = si; setBackIndex(si)  }
           else   { frontIdxRef.current = si; setFrontIndex(si) }
-          preload(photoUrl(sortedRef.current[(si + 1) % len]))
+          preload(photoUrl(sortedRef.current[nextLiveIndex(si)]))
           return !p
         })
       }, intervalMsRef.current)
@@ -230,8 +271,10 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
      *   center for now; the next iteration will pan based on detected face /
      *   salient region while keeping the anchor inside the safe zone slider.
      */
-    const renderLayer = (key: string, idx: number, visible: boolean) => {
-      const url = photoUrl(sortedPhotos[idx % sortedPhotos.length] ?? sortedPhotos[0])
+    const renderLayer = (key: string, idx: number, visible: boolean, layer: 'front' | 'back') => {
+      const name = sortedPhotos[idx % sortedPhotos.length] ?? sortedPhotos[0]
+      const url  = photoUrl(name)
+      const onError = () => handleImgError(name, layer)
 
       if (cropMode === 'focus') {
         return (
@@ -249,6 +292,7 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
               alt=""
               decoding="async"
               loading="eager"
+              onError={onError}
               className="absolute inset-0 w-full h-full object-cover"
               style={{
                 objectPosition: '50% 50%',  // TODO: pan to focal point + safe zone
@@ -292,6 +336,7 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
             alt=""
             decoding="async"
             loading="eager"
+            onError={onError}
             className="absolute inset-0 w-full h-full object-contain"
             style={{
               willChange: 'transform',
@@ -305,8 +350,8 @@ const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, PhotoSlideshowProps>(
 
     return (
       <div className={`absolute inset-0 ${background}`}>
-        {renderLayer(`back-${backIndex}`,   backIndex,  !showFront)}
-        {renderLayer(`front-${frontIndex}`, frontIndex,  showFront)}
+        {renderLayer(`back-${backIndex}`,   backIndex,  !showFront, 'back')}
+        {renderLayer(`front-${frontIndex}`, frontIndex,  showFront, 'front')}
         {/* Gradient overlay to make text readable */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
       </div>
